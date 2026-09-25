@@ -7,6 +7,9 @@ const refreshButton = document.getElementById("refreshButton");
 const previewMessage = document.getElementById("previewMessage");
 const statusBadge = document.getElementById("statusBadge");
 const detailText = document.getElementById("detailText");
+const effectChips = [...document.querySelectorAll(".effect-chip")];
+const recentSession = document.getElementById("recentSession");
+const recentEmptyText = document.getElementById("recentEmptyText");
 
 let activeStream = null;
 let videoDevices = [];
@@ -216,3 +219,42 @@ navigator.mediaDevices?.addEventListener?.("devicechange", () => {
 window.addEventListener("beforeunload", stopActiveStream);
 
 refreshCameras({ requestPermission: true });
+
+
+function selectEffectChip(chip) {
+  effectChips.forEach((item) => item.classList.toggle("selected", item === chip));
+}
+
+effectChips.forEach((chip) => {
+  chip.addEventListener("click", () => selectEffectChip(chip));
+});
+
+// Replaces the four placeholders with the most recent 4-photo session.
+// Capture/storage code will call this with object URLs or data URLs.
+function renderRecentSession(imageUrls = []) {
+  recentSession.innerHTML = "";
+
+  for (let index = 0; index < 4; index += 1) {
+    const slot = document.createElement("div");
+    slot.className = "recent-photo";
+
+    if (imageUrls[index]) {
+      const image = document.createElement("img");
+      image.src = imageUrls[index];
+      image.alt = `Most recent session photo ${index + 1}`;
+      slot.appendChild(image);
+    } else {
+      slot.classList.add("empty");
+      const number = document.createElement("span");
+      number.textContent = String(index + 1);
+      slot.appendChild(number);
+    }
+
+    recentSession.appendChild(slot);
+  }
+
+  recentEmptyText.hidden = imageUrls.length > 0;
+}
+
+// Keep the layout deterministic until the capture feature lands.
+renderRecentSession([]);
