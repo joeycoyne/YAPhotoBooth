@@ -106,6 +106,7 @@ h1 {
   padding: 30px;
   text-align: center;
   background: rgba(0, 0, 0, 0.72);
+  z-index: 4;
 }
 
 .preview-message.hidden {
@@ -121,6 +122,53 @@ h1 {
   margin: 0;
   color: #d1d5db;
   font-size: 1.05rem;
+}
+
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.18);
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.9);
+}
+
+.countdown-overlay.hidden {
+  display: none;
+}
+
+.countdown-label {
+  margin-bottom: -8px;
+  font-size: clamp(1.4rem, 3vw, 2.1rem);
+  font-weight: 900;
+}
+
+.countdown-number {
+  font-size: clamp(7rem, 18vw, 13rem);
+  line-height: 0.95;
+  font-weight: 950;
+}
+
+.flash-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: white;
+  opacity: 0;
+}
+
+.flash-overlay.flash {
+  animation: camera-flash 180ms ease-out;
+}
+
+@keyframes camera-flash {
+  0% { opacity: 0; }
+  25% { opacity: 0.92; }
+  100% { opacity: 0; }
 }
 
 .recent-panel {
@@ -227,6 +275,10 @@ h1 {
 .effect-chip.selected {
   border-color: #f59e0b;
   background: #4b5563;
+}
+
+.effect-chip:disabled {
+  opacity: 0.55;
 }
 
 .birthday-chip {
