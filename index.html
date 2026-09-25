@@ -12,7 +12,7 @@
     <header class="topbar">
       <div>
         <h1>YAPhotoBooth</h1>
-        <p class="subtitle">Camera + booth layout test · v0.2</p>
+        <p class="subtitle">4-photo booth test · v0.3</p>
       </div>
       <span id="statusBadge" class="status-badge">Starting…</span>
     </header>
@@ -27,6 +27,13 @@
             <p>Choose a camera below.</p>
           </div>
         </div>
+
+        <div id="countdownOverlay" class="countdown-overlay hidden" aria-live="assertive">
+          <div id="countdownLabel" class="countdown-label">Get ready!</div>
+          <div id="countdownNumber" class="countdown-number">4</div>
+        </div>
+
+        <div id="flashOverlay" class="flash-overlay" aria-hidden="true"></div>
       </section>
 
       <aside class="recent-panel" aria-label="Most recent slide">
