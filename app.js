@@ -34,6 +34,9 @@ const flashOverlay = document.getElementById("flashOverlay");
 const crownSticker = document.getElementById("crownSticker");
 const sunglassesSticker = document.getElementById("sunglassesSticker");
 const birthdaySticker = document.getElementById("birthdaySticker");
+const balloonBorder = document.getElementById("balloonBorder");
+const confettiBorder = document.getElementById("confettiBorder");
+const starBorder = document.getElementById("starBorder");
 
 let activeStream = null;
 let videoDevices = [];
@@ -276,12 +279,16 @@ function openDatabase() {
 
 async function saveSession(photos, filter, stickers) {
   const db = await openDatabase();
+  const renderedPhotos = await Promise.all(
+    photos.map((photo) => photo.arrayBuffer())
+  );
   const record = {
     id: Date.now(),
+    formatVersion: 2,
     createdAt: new Date().toISOString(),
     filter,
     stickers: [...stickers],
-    photos,
+    renderedPhotos,
   };
 
   await new Promise((resolve, reject) => {
@@ -328,6 +335,9 @@ function updateLiveEffects() {
   crownSticker.classList.toggle("hidden", !selectedStickers.has("crown"));
   sunglassesSticker.classList.toggle("hidden", !selectedStickers.has("sunglasses"));
   birthdaySticker.classList.toggle("hidden", !selectedStickers.has("gianna"));
+  balloonBorder.classList.toggle("hidden", !selectedStickers.has("balloons"));
+  confettiBorder.classList.toggle("hidden", !selectedStickers.has("confetti"));
+  starBorder.classList.toggle("hidden", !selectedStickers.has("stars"));
 }
 
 function selectFilter(chip) {
@@ -410,14 +420,25 @@ function renderRecentSession(photos = []) {
   recentEmptyText.hidden = photos.length > 0;
 }
 
+function getStoredSessionPhotos(session) {
+  if (session?.renderedPhotos?.length) {
+    return session.renderedPhotos.map(
+      (bytes) => new Blob([bytes], { type: "image/jpeg" })
+    );
+  }
+
+  // Backward compatibility with v0.4 sessions.
+  if (session?.photos?.length) {
+    return session.photos;
+  }
+
+  return [];
+}
+
 async function restoreLatestSession() {
   try {
     const session = await getLatestSession();
-    if (session?.photos?.length) {
-      renderRecentSession(session.photos);
-    } else {
-      renderRecentSession([]);
-    }
+    renderRecentSession(getStoredSessionPhotos(session));
   } catch (error) {
     console.warn("Could not restore the latest photo session:", error);
     renderRecentSession([]);
@@ -453,6 +474,97 @@ function drawRoundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
+
+function drawStar(context, cx, cy, outerRadius, innerRadius) {
+  context.beginPath();
+  for (let point = 0; point < 10; point += 1) {
+    const radius = point % 2 === 0 ? outerRadius : innerRadius;
+    const angle = -Math.PI / 2 + point * Math.PI / 5;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (point === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  }
+  context.closePath();
+}
+
+function drawBalloon(context, cx, cy, radius, color) {
+  context.save();
+  context.fillStyle = color;
+  context.beginPath();
+  context.ellipse(cx, cy, radius * 0.82, radius, 0, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = "rgba(255,255,255,0.55)";
+  context.lineWidth = Math.max(2, radius * 0.06);
+  context.stroke();
+
+  context.fillStyle = color;
+  context.beginPath();
+  context.moveTo(cx, cy + radius);
+  context.lineTo(cx - radius * 0.16, cy + radius * 1.18);
+  context.lineTo(cx + radius * 0.16, cy + radius * 1.18);
+  context.closePath();
+  context.fill();
+
+  context.strokeStyle = "rgba(255,255,255,0.72)";
+  context.lineWidth = Math.max(1.5, radius * 0.035);
+  context.beginPath();
+  context.moveTo(cx, cy + radius * 1.18);
+  context.quadraticCurveTo(cx + radius * 0.35, cy + radius * 2.0, cx, cy + radius * 2.7);
+  context.stroke();
+  context.restore();
+}
+
+function drawEdgeDecorations(context, width, height, stickers) {
+  const marginX = width * 0.055;
+  const marginY = height * 0.08;
+
+  if (stickers.has("balloons")) {
+    const r = Math.max(26, height * 0.065);
+    drawBalloon(context, marginX, marginY, r, "#ec4899");
+    drawBalloon(context, width - marginX, marginY, r, "#3b82f6");
+    drawBalloon(context, marginX, height - marginY * 1.1, r, "#8b5cf6");
+    drawBalloon(context, width - marginX, height - marginY * 1.1, r, "#f59e0b");
+  }
+
+  if (stickers.has("confetti")) {
+    const pieces = [
+      [0.04,0.08,18,"#f59e0b"], [0.95,0.12,-28,"#22c55e"],
+      [0.025,0.42,63,"#ec4899"], [0.975,0.37,-61,"#3b82f6"],
+      [0.07,0.92,-15,"#8b5cf6"], [0.93,0.90,28,"#ef4444"],
+      [0.02,0.22,42,"#06b6d4"], [0.98,0.73,-36,"#facc15"],
+      [0.16,0.025,52,"#ef4444"], [0.82,0.025,-44,"#a855f7"],
+      [0.14,0.975,-24,"#14b8a6"], [0.84,0.975,31,"#fb7185"],
+    ];
+    const pieceW = Math.max(8, width * 0.009);
+    const pieceH = Math.max(16, height * 0.035);
+    for (const [px, py, degrees, color] of pieces) {
+      context.save();
+      context.translate(width * px, height * py);
+      context.rotate((degrees * Math.PI) / 180);
+      context.fillStyle = color;
+      context.fillRect(-pieceW / 2, -pieceH / 2, pieceW, pieceH);
+      context.restore();
+    }
+  }
+
+  if (stickers.has("stars")) {
+    const positions = [
+      [0.05,0.08], [0.95,0.08], [0.04,0.92], [0.96,0.92],
+      [0.02,0.48], [0.98,0.48]
+    ];
+    const outer = Math.max(20, height * 0.045);
+    context.fillStyle = "#fde047";
+    context.strokeStyle = "rgba(0,0,0,0.35)";
+    context.lineWidth = Math.max(2, outer * 0.08);
+    for (const [px, py] of positions) {
+      drawStar(context, width * px, height * py, outer, outer * 0.45);
+      context.fill();
+      context.stroke();
+    }
+  }
+}
+
 function drawStickers(context, width, height, stickers) {
   context.save();
   context.filter = "none";
@@ -461,7 +573,7 @@ function drawStickers(context, width, height, stickers) {
 
   if (stickers.has("crown")) {
     context.font = `${Math.round(height * 0.18)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
-    context.fillText("👑", width * 0.5, height * 0.15);
+    context.fillText("👑", width * 0.5, height * 0.15 - 10);
   }
 
   if (stickers.has("sunglasses")) {
@@ -477,9 +589,9 @@ function drawStickers(context, width, height, stickers) {
     const metrics = context.measureText(text);
     const paddingX = fontSize * 0.5;
     const paddingY = fontSize * 0.24;
-    const bannerWidth = Math.min(width * 0.88, metrics.width + paddingX * 2);
+    const bannerWidth = Math.min(width * 0.74, metrics.width + paddingX * 2);
     const bannerHeight = fontSize + paddingY * 2;
-    const x = (width - bannerWidth) / 2;
+    const x = width * 0.035;
     const y = height - bannerHeight - height * 0.045;
 
     context.fillStyle = "rgba(124, 58, 237, 0.90)";
@@ -491,9 +603,16 @@ function drawStickers(context, width, height, stickers) {
     context.stroke();
 
     context.fillStyle = "#ffffff";
-    context.fillText(text, width / 2, y + bannerHeight / 2 + fontSize * 0.02);
+    context.textAlign = "left";
+    context.fillText(
+      text,
+      x + paddingX,
+      y + bannerHeight / 2 + fontSize * 0.02
+    );
+    context.textAlign = "center";
   }
 
+  drawEdgeDecorations(context, width, height, stickers);
   context.restore();
 }
 
@@ -566,8 +685,10 @@ async function capturePhotoSession() {
 
     try {
       await saveSession(newSession, sessionFilter, sessionStickers);
+      const persistedSession = await getLatestSession();
+      renderRecentSession(getStoredSessionPhotos(persistedSession));
       setStatus("Saved locally", "ready");
-      detailText.textContent = "Session saved on this Chromebook and will survive a page reload.";
+      detailText.textContent = "Session saved as flattened JPEG data on this Chromebook.";
     } catch (storageError) {
       console.error("Photo storage failed:", storageError);
       setStatus("Photos not saved", "error");
