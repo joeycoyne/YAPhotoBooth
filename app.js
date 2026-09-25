@@ -3,6 +3,17 @@ const PHOTO_COUNT = 4;
 const INITIAL_COUNTDOWN_SECONDS = 4;
 const BETWEEN_PHOTO_SECONDS = 3;
 
+const DB_NAME = "YAPhotoBoothDB";
+const DB_VERSION = 1;
+const SESSION_STORE = "sessions";
+
+const FILTERS = {
+  normal: { css: "none", canvas: "none" },
+  bw: { css: "grayscale(1) contrast(1.08)", canvas: "grayscale(1) contrast(1.08)" },
+  pop: { css: "saturate(1.65) contrast(1.12)", canvas: "saturate(1.65) contrast(1.12)" },
+  warm: { css: "sepia(0.22) saturate(1.25) hue-rotate(-8deg)", canvas: "sepia(0.22) saturate(1.25) hue-rotate(-8deg)" },
+};
+
 const preview = document.getElementById("preview");
 const cameraSelect = document.getElementById("cameraSelect");
 const useCameraButton = document.getElementById("useCameraButton");
@@ -10,7 +21,9 @@ const refreshButton = document.getElementById("refreshButton");
 const previewMessage = document.getElementById("previewMessage");
 const statusBadge = document.getElementById("statusBadge");
 const detailText = document.getElementById("detailText");
-const effectChips = [...document.querySelectorAll(".effect-chip")];
+const filterChips = [...document.querySelectorAll(".filter-chip")];
+const stickerChips = [...document.querySelectorAll(".sticker-chip")];
+const clearStickersButton = document.getElementById("clearStickersButton");
 const recentSession = document.getElementById("recentSession");
 const recentEmptyText = document.getElementById("recentEmptyText");
 const takePhotosButton = document.getElementById("takePhotosButton");
@@ -18,11 +31,17 @@ const countdownOverlay = document.getElementById("countdownOverlay");
 const countdownLabel = document.getElementById("countdownLabel");
 const countdownNumber = document.getElementById("countdownNumber");
 const flashOverlay = document.getElementById("flashOverlay");
+const crownSticker = document.getElementById("crownSticker");
+const sunglassesSticker = document.getElementById("sunglassesSticker");
+const birthdaySticker = document.getElementById("birthdaySticker");
 
 let activeStream = null;
 let videoDevices = [];
 let isCapturing = false;
-let latestSession = [];
+let selectedFilter = "normal";
+let selectedStickers = new Set();
+let recentObjectUrls = [];
+let dbPromise = null;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,9 +69,13 @@ function hidePreviewMessage() {
 
 function setCaptureControlsEnabled(enabled) {
   takePhotosButton.disabled = !enabled;
-  effectChips.forEach((chip) => {
+  filterChips.forEach((chip) => {
     chip.disabled = !enabled;
   });
+  stickerChips.forEach((chip) => {
+    chip.disabled = !enabled;
+  });
+  clearStickersButton.disabled = !enabled;
 }
 
 function stopActiveStream() {
@@ -64,7 +87,6 @@ function stopActiveStream() {
 }
 
 async function ensurePermission() {
-  // Camera labels/device IDs are restricted until camera permission is granted.
   const permissionStream = await navigator.mediaDevices.getUserMedia({
     video: true,
     audio: false,
@@ -193,7 +215,6 @@ async function startExactCamera(deviceId, saveChoice = true) {
     const track = stream.getVideoTracks()[0];
     const settings = track.getSettings();
 
-    // Verify Chrome actually gave us the requested device.
     if (settings.deviceId && settings.deviceId !== deviceId) {
       stream.getTracks().forEach((t) => t.stop());
       throw new Error("Chrome opened a different camera than the one selected.");
@@ -212,7 +233,7 @@ async function startExactCamera(deviceId, saveChoice = true) {
     hidePreviewMessage();
     setCaptureControlsEnabled(true);
     detailText.textContent =
-      `Locked to: ${selected?.label || "selected camera"}`;
+      `Locked to: ${selected?.label || "selected camera"} · Photos save locally on this Chromebook.`;
   } catch (error) {
     console.error(error);
     stopActiveStream();
@@ -233,21 +254,147 @@ async function startExactCamera(deviceId, saveChoice = true) {
   }
 }
 
-function selectEffectChip(chip) {
-  if (isCapturing) return;
-  effectChips.forEach((item) => item.classList.toggle("selected", item === chip));
+function openDatabase() {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(SESSION_STORE)) {
+        db.createObjectStore(SESSION_STORE, { keyPath: "id" });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  return dbPromise;
 }
 
-function renderRecentSession(imageUrls = []) {
+async function saveSession(photos, filter, stickers) {
+  const db = await openDatabase();
+  const record = {
+    id: Date.now(),
+    createdAt: new Date().toISOString(),
+    filter,
+    stickers: [...stickers],
+    photos,
+  };
+
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(SESSION_STORE, "readwrite");
+    const store = transaction.objectStore(SESSION_STORE);
+    store.put(record);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+
+  return record;
+}
+
+async function getLatestSession() {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(SESSION_STORE, "readonly");
+    const store = transaction.objectStore(SESSION_STORE);
+    const request = store.openCursor(null, "prev");
+
+    request.onsuccess = () => {
+      resolve(request.result ? request.result.value : null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function requestPersistentStorage() {
+  try {
+    if (navigator.storage?.persist) {
+      await navigator.storage.persist();
+    }
+  } catch (error) {
+    console.warn("Persistent storage request was not available:", error);
+  }
+}
+
+function updateLiveEffects() {
+  const filter = FILTERS[selectedFilter] || FILTERS.normal;
+  preview.style.filter = filter.css;
+
+  crownSticker.classList.toggle("hidden", !selectedStickers.has("crown"));
+  sunglassesSticker.classList.toggle("hidden", !selectedStickers.has("sunglasses"));
+  birthdaySticker.classList.toggle("hidden", !selectedStickers.has("gianna"));
+}
+
+function selectFilter(chip) {
+  if (isCapturing) return;
+  selectedFilter = chip.dataset.filter || "normal";
+
+  filterChips.forEach((item) => {
+    item.classList.toggle("selected", item === chip);
+  });
+
+  updateLiveEffects();
+}
+
+function toggleSticker(chip) {
+  if (isCapturing) return;
+
+  const sticker = chip.dataset.sticker;
+  if (!sticker) return;
+
+  if (selectedStickers.has(sticker)) {
+    selectedStickers.delete(sticker);
+  } else {
+    selectedStickers.add(sticker);
+  }
+
+  const selected = selectedStickers.has(sticker);
+  chip.classList.toggle("selected", selected);
+  chip.setAttribute("aria-pressed", String(selected));
+  updateLiveEffects();
+}
+
+function clearStickers() {
+  if (isCapturing) return;
+
+  selectedStickers.clear();
+  stickerChips.forEach((chip) => {
+    chip.classList.remove("selected");
+    chip.setAttribute("aria-pressed", "false");
+  });
+  updateLiveEffects();
+}
+
+function clearRecentObjectUrls() {
+  recentObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  recentObjectUrls = [];
+}
+
+function renderRecentSession(photos = []) {
+  clearRecentObjectUrls();
   recentSession.innerHTML = "";
 
   for (let index = 0; index < PHOTO_COUNT; index += 1) {
     const slot = document.createElement("div");
     slot.className = "recent-photo";
 
-    if (imageUrls[index]) {
+    if (photos[index]) {
       const image = document.createElement("img");
-      image.src = imageUrls[index];
+      const source =
+        photos[index] instanceof Blob
+          ? URL.createObjectURL(photos[index])
+          : photos[index];
+
+      if (photos[index] instanceof Blob) {
+        recentObjectUrls.push(source);
+      }
+
+      image.src = source;
       image.alt = `Most recent session photo ${index + 1}`;
       slot.appendChild(image);
     } else {
@@ -260,7 +407,21 @@ function renderRecentSession(imageUrls = []) {
     recentSession.appendChild(slot);
   }
 
-  recentEmptyText.hidden = imageUrls.length > 0;
+  recentEmptyText.hidden = photos.length > 0;
+}
+
+async function restoreLatestSession() {
+  try {
+    const session = await getLatestSession();
+    if (session?.photos?.length) {
+      renderRecentSession(session.photos);
+    } else {
+      renderRecentSession([]);
+    }
+  } catch (error) {
+    console.warn("Could not restore the latest photo session:", error);
+    renderRecentSession([]);
+  }
 }
 
 async function runCountdown(seconds, label) {
@@ -277,12 +438,79 @@ async function runCountdown(seconds, label) {
 
 function triggerFlash() {
   flashOverlay.classList.remove("flash");
-  // Force a reflow so the animation restarts for every shot.
   void flashOverlay.offsetWidth;
   flashOverlay.classList.add("flash");
 }
 
-function captureCurrentFrame() {
+function drawRoundedRect(context, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + width, y, x + width, y + height, r);
+  context.arcTo(x + width, y + height, x, y + height, r);
+  context.arcTo(x, y + height, x, y, r);
+  context.arcTo(x, y, x + width, y, r);
+  context.closePath();
+}
+
+function drawStickers(context, width, height, stickers) {
+  context.save();
+  context.filter = "none";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  if (stickers.has("crown")) {
+    context.font = `${Math.round(height * 0.18)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
+    context.fillText("👑", width * 0.5, height * 0.15);
+  }
+
+  if (stickers.has("sunglasses")) {
+    context.font = `${Math.round(height * 0.16)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
+    context.fillText("🕶️", width * 0.5, height * 0.43);
+  }
+
+  if (stickers.has("gianna")) {
+    const text = "Gianna's 11th!";
+    const fontSize = Math.max(34, Math.round(height * 0.075));
+    context.font = `900 ${fontSize}px system-ui, sans-serif`;
+
+    const metrics = context.measureText(text);
+    const paddingX = fontSize * 0.5;
+    const paddingY = fontSize * 0.24;
+    const bannerWidth = Math.min(width * 0.88, metrics.width + paddingX * 2);
+    const bannerHeight = fontSize + paddingY * 2;
+    const x = (width - bannerWidth) / 2;
+    const y = height - bannerHeight - height * 0.045;
+
+    context.fillStyle = "rgba(124, 58, 237, 0.90)";
+    drawRoundedRect(context, x, y, bannerWidth, bannerHeight, bannerHeight / 2);
+    context.fill();
+
+    context.lineWidth = Math.max(3, fontSize * 0.06);
+    context.strokeStyle = "rgba(255,255,255,0.92)";
+    context.stroke();
+
+    context.fillStyle = "#ffffff";
+    context.fillText(text, width / 2, y + bannerHeight / 2 + fontSize * 0.02);
+  }
+
+  context.restore();
+}
+
+function canvasToJpegBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Could not encode the captured photo."));
+      },
+      "image/jpeg",
+      0.92
+    );
+  });
+}
+
+async function captureCurrentFrame(filterName, stickers) {
   if (!preview.videoWidth || !preview.videoHeight) {
     throw new Error("The camera preview is not ready to capture.");
   }
@@ -292,9 +520,13 @@ function captureCurrentFrame() {
   canvas.height = preview.videoHeight;
 
   const context = canvas.getContext("2d");
-  context.drawImage(preview, 0, 0, canvas.width, canvas.height);
+  const filter = FILTERS[filterName] || FILTERS.normal;
 
-  return canvas.toDataURL("image/jpeg", 0.92);
+  context.filter = filter.canvas;
+  context.drawImage(preview, 0, 0, canvas.width, canvas.height);
+  drawStickers(context, canvas.width, canvas.height, stickers);
+
+  return canvasToJpegBlob(canvas);
 }
 
 async function capturePhotoSession() {
@@ -308,6 +540,8 @@ async function capturePhotoSession() {
   setStatus("Photo session");
   takePhotosButton.textContent = "Taking photos…";
 
+  const sessionFilter = selectedFilter;
+  const sessionStickers = new Set(selectedStickers);
   const newSession = [];
 
   try {
@@ -321,16 +555,25 @@ async function capturePhotoSession() {
 
       await runCountdown(countdownSeconds, label);
 
-      const image = captureCurrentFrame();
-      newSession.push(image);
+      const imageBlob = await captureCurrentFrame(sessionFilter, sessionStickers);
+      newSession.push(imageBlob);
       triggerFlash();
 
       setStatus(`Photo ${index + 1} / ${PHOTO_COUNT}`, "ready");
     }
 
-    latestSession = newSession;
-    renderRecentSession(latestSession);
-    setStatus("Session complete", "ready");
+    renderRecentSession(newSession);
+
+    try {
+      await saveSession(newSession, sessionFilter, sessionStickers);
+      setStatus("Saved locally", "ready");
+      detailText.textContent = "Session saved on this Chromebook and will survive a page reload.";
+    } catch (storageError) {
+      console.error("Photo storage failed:", storageError);
+      setStatus("Photos not saved", "error");
+      detailText.textContent = "The photos were captured, but browser storage failed.";
+    }
+
     takePhotosButton.textContent = "Take Photos";
   } catch (error) {
     console.error(error);
@@ -363,15 +606,26 @@ refreshButton.addEventListener("click", () => {
 
 takePhotosButton.addEventListener("click", capturePhotoSession);
 
-effectChips.forEach((chip) => {
-  chip.addEventListener("click", () => selectEffectChip(chip));
+filterChips.forEach((chip) => {
+  chip.addEventListener("click", () => selectFilter(chip));
 });
+
+stickerChips.forEach((chip) => {
+  chip.addEventListener("click", () => toggleSticker(chip));
+});
+
+clearStickersButton.addEventListener("click", clearStickers);
 
 navigator.mediaDevices?.addEventListener?.("devicechange", () => {
   refreshCameras({ requestPermission: false });
 });
 
-window.addEventListener("beforeunload", stopActiveStream);
+window.addEventListener("beforeunload", () => {
+  stopActiveStream();
+  clearRecentObjectUrls();
+});
 
-renderRecentSession([]);
+updateLiveEffects();
+requestPersistentStorage();
+restoreLatestSession();
 refreshCameras({ requestPermission: true });
