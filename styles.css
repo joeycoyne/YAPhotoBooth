@@ -119,7 +119,7 @@ h1 {
 }
 
 .crown-sticker {
-  top: 5%;
+  top: calc(5% - 10px);
   font-size: clamp(4rem, 9vw, 7.5rem);
 }
 
@@ -129,7 +129,9 @@ h1 {
 }
 
 .birthday-sticker {
+  left: 3%;
   bottom: 4%;
+  transform: none;
   padding: 9px 18px;
   border: 3px solid rgba(255, 255, 255, 0.9);
   border-radius: 999px;
@@ -139,6 +141,62 @@ h1 {
   font-weight: 950;
   white-space: nowrap;
 }
+
+.edge-decoration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.edge-decoration.hidden {
+  display: none;
+}
+
+.edge-decoration > span {
+  position: absolute;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
+}
+
+.edge-top-left { top: 2%; left: 2%; }
+.edge-top-right { top: 2%; right: 2%; }
+.edge-bottom-left { bottom: 2%; left: 2%; }
+.edge-bottom-right { bottom: 2%; right: 2%; }
+
+.balloon-border > span {
+  font-size: clamp(2.8rem, 6vw, 5.2rem);
+}
+
+.balloon-border .edge-top-left,
+.balloon-border .edge-bottom-right {
+  transform: rotate(-12deg);
+}
+
+.balloon-border .edge-top-right,
+.balloon-border .edge-bottom-left {
+  transform: rotate(12deg);
+}
+
+.star-border > span {
+  color: #fde047;
+  font-size: clamp(2.4rem, 5vw, 4.4rem);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+}
+
+.confetti {
+  width: 13px;
+  height: 28px;
+  border-radius: 4px;
+  background: #f59e0b;
+}
+
+.confetti-a { top: 3%; left: 4%; transform: rotate(18deg); }
+.confetti-b { top: 7%; right: 5%; transform: rotate(-28deg); background: #22c55e; }
+.confetti-c { top: 43%; left: 2%; transform: rotate(63deg); background: #ec4899; }
+.confetti-d { top: 38%; right: 2%; transform: rotate(-61deg); background: #3b82f6; }
+.confetti-e { bottom: 4%; left: 6%; transform: rotate(-15deg); background: #8b5cf6; }
+.confetti-f { bottom: 6%; right: 7%; transform: rotate(28deg); background: #ef4444; }
+.confetti-g { top: 20%; left: 1%; transform: rotate(42deg); background: #06b6d4; }
+.confetti-h { bottom: 24%; right: 1%; transform: rotate(-36deg); background: #facc15; }
 
 .preview-message {
   position: absolute;
