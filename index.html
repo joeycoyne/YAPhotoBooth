@@ -12,7 +12,7 @@
     <header class="topbar">
       <div>
         <h1>YAPhotoBooth</h1>
-        <p class="subtitle">Persistent storage + effects · v0.4</p>
+        <p class="subtitle">Persistent storage + effects · v0.5</p>
       </div>
       <span id="statusBadge" class="status-badge">Starting…</span>
     </header>
@@ -25,6 +25,20 @@
           <div id="crownSticker" class="live-sticker crown-sticker hidden">👑</div>
           <div id="sunglassesSticker" class="live-sticker sunglasses-sticker hidden">🕶️</div>
           <div id="birthdaySticker" class="live-sticker birthday-sticker hidden">Gianna's 11th!</div>
+          <div id="balloonBorder" class="edge-decoration balloon-border hidden" aria-hidden="true">
+            <span class="edge-top-left">🎈</span><span class="edge-top-right">🎈</span>
+            <span class="edge-bottom-left">🎈</span><span class="edge-bottom-right">🎈</span>
+          </div>
+          <div id="confettiBorder" class="edge-decoration confetti-border hidden" aria-hidden="true">
+            <span class="confetti confetti-a"></span><span class="confetti confetti-b"></span>
+            <span class="confetti confetti-c"></span><span class="confetti confetti-d"></span>
+            <span class="confetti confetti-e"></span><span class="confetti confetti-f"></span>
+            <span class="confetti confetti-g"></span><span class="confetti confetti-h"></span>
+          </div>
+          <div id="starBorder" class="edge-decoration star-border hidden" aria-hidden="true">
+            <span class="edge-top-left">★</span><span class="edge-top-right">★</span>
+            <span class="edge-bottom-left">★</span><span class="edge-bottom-right">★</span>
+          </div>
         </div>
 
         <div id="previewMessage" class="preview-message">
@@ -69,11 +83,18 @@
           <button class="filter-chip" type="button" data-filter="warm">Warm</button>
         </div>
 
-        <div class="effect-row" aria-label="Photo stickers">
-          <span class="effect-label">Stickers</span>
+        <div class="effect-row" aria-label="Face stickers">
+          <span class="effect-label">Face</span>
           <button class="sticker-chip" type="button" data-sticker="sunglasses" aria-pressed="false">😎</button>
           <button class="sticker-chip" type="button" data-sticker="crown" aria-pressed="false">👑</button>
+        </div>
+
+        <div class="effect-row" aria-label="Edge decorations">
+          <span class="effect-label">Edges</span>
           <button class="sticker-chip birthday-chip" type="button" data-sticker="gianna" aria-pressed="false">Gianna's 11th!</button>
+          <button class="sticker-chip" type="button" data-sticker="balloons" aria-pressed="false">🎈 Balloons</button>
+          <button class="sticker-chip" type="button" data-sticker="confetti" aria-pressed="false">Confetti</button>
+          <button class="sticker-chip" type="button" data-sticker="stars" aria-pressed="false">★ Stars</button>
           <button id="clearStickersButton" class="clear-chip" type="button">Clear</button>
         </div>
       </div>
