@@ -98,6 +98,48 @@ h1 {
   background: #000;
 }
 
+.sticker-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.live-sticker {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.55));
+  user-select: none;
+}
+
+.live-sticker.hidden {
+  display: none;
+}
+
+.crown-sticker {
+  top: 5%;
+  font-size: clamp(4rem, 9vw, 7.5rem);
+}
+
+.sunglasses-sticker {
+  top: 34%;
+  font-size: clamp(3.5rem, 8vw, 6.5rem);
+}
+
+.birthday-sticker {
+  bottom: 4%;
+  padding: 9px 18px;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.9);
+  color: white;
+  font-size: clamp(1.25rem, 3vw, 2.2rem);
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 .preview-message {
   position: absolute;
   inset: 0;
@@ -242,57 +284,80 @@ h1 {
   align-items: stretch;
 }
 
-.effect-strip {
+.effect-controls {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.effect-row {
   min-width: 0;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 7px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.effect-strip::-webkit-scrollbar {
+.effect-row::-webkit-scrollbar {
   display: none;
 }
 
-.effect-chip,
+.effect-label {
+  flex: 0 0 62px;
+  color: #9ca3af;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-chip,
+.sticker-chip,
+.clear-chip,
 .take-button {
-  min-height: 52px;
+  min-height: 42px;
   border: 0;
-  border-radius: 14px;
-  padding: 8px 16px;
+  border-radius: 12px;
+  padding: 6px 14px;
   font-weight: 800;
   cursor: pointer;
   touch-action: manipulation;
 }
 
-.effect-chip {
+.filter-chip,
+.sticker-chip,
+.clear-chip {
   flex: 0 0 auto;
   background: #374151;
   color: #f9fafb;
   border: 2px solid transparent;
 }
 
-.effect-chip.selected {
+.filter-chip.selected,
+.sticker-chip.selected {
   border-color: #f59e0b;
   background: #4b5563;
-}
-
-.effect-chip:disabled {
-  opacity: 0.55;
 }
 
 .birthday-chip {
   background: #7c3aed;
 }
 
+.clear-chip {
+  background: #293241;
+  color: #d1d5db;
+}
+
 .take-button {
+  min-height: 90px;
   background: #f59e0b;
   color: #111827;
   font-size: 1.05rem;
 }
 
-.take-button:disabled {
-  opacity: 0.45;
+button:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -326,17 +391,9 @@ select {
   margin-top: 10px;
 }
 
-button {
-  min-height: 48px;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .primary-button,
 .secondary-button {
+  min-height: 48px;
   border: 0;
   border-radius: 14px;
   padding: 9px 16px;
@@ -367,20 +424,20 @@ button:disabled {
   .app-shell {
     width: 100%;
     max-width: 1366px;
-    padding: 9px 12px;
-    gap: 8px;
+    padding: 8px 12px;
+    gap: 7px;
   }
 
   .topbar {
-    min-height: 42px;
+    min-height: 40px;
   }
 
   h1 {
-    font-size: 1.75rem;
+    font-size: 1.7rem;
   }
 
   .subtitle {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
   }
 
   .booth-stage {
@@ -411,10 +468,28 @@ button:disabled {
     gap: 8px;
   }
 
-  .effect-chip,
+  .effect-controls {
+    gap: 4px;
+  }
+
+  .effect-row {
+    gap: 5px;
+  }
+
+  .effect-label {
+    flex-basis: 58px;
+    font-size: 0.7rem;
+  }
+
+  .filter-chip,
+  .sticker-chip,
+  .clear-chip {
+    min-height: 38px;
+    padding: 5px 12px;
+  }
+
   .take-button {
-    min-height: 48px;
-    padding: 7px 14px;
+    min-height: 80px;
   }
 
   .controls {
@@ -437,7 +512,7 @@ button:disabled {
 
   .controls select {
     grid-area: select;
-    min-height: 44px;
+    min-height: 42px;
   }
 
   .button-row {
@@ -448,13 +523,13 @@ button:disabled {
 
   .primary-button,
   .secondary-button {
-    min-height: 44px;
+    min-height: 42px;
   }
 
   .detail-text {
     grid-area: detail;
     margin: 1px 0 0;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
 }
 
@@ -491,6 +566,10 @@ button:disabled {
 
   .booth-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .take-button {
+    min-height: 56px;
   }
 
   .button-row {
