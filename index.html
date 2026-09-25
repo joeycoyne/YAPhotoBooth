@@ -12,20 +12,54 @@
     <header class="topbar">
       <div>
         <h1>YAPhotoBooth</h1>
-        <p class="subtitle">Camera test · v0.1</p>
+        <p class="subtitle">Camera + booth layout test · v0.2</p>
       </div>
       <span id="statusBadge" class="status-badge">Starting…</span>
     </header>
 
-    <section class="preview-panel" aria-label="Camera preview">
-      <video id="preview" autoplay playsinline muted></video>
+    <section class="booth-stage">
+      <section class="preview-panel" aria-label="Camera preview">
+        <video id="preview" autoplay playsinline muted></video>
 
-      <div id="previewMessage" class="preview-message">
-        <div>
-          <h2>Camera not started</h2>
-          <p>Choose a camera below.</p>
+        <div id="previewMessage" class="preview-message">
+          <div>
+            <h2>Camera not started</h2>
+            <p>Choose a camera below.</p>
+          </div>
         </div>
+      </section>
+
+      <aside class="recent-panel" aria-label="Most recent slide">
+        <div class="recent-heading">
+          <h2>Most Recent Slide</h2>
+          <p>Last 4-photo session</p>
+        </div>
+
+        <div id="recentSession" class="recent-session">
+          <div class="recent-photo empty"><span>1</span></div>
+          <div class="recent-photo empty"><span>2</span></div>
+          <div class="recent-photo empty"><span>3</span></div>
+          <div class="recent-photo empty"><span>4</span></div>
+        </div>
+
+        <p id="recentEmptyText" class="recent-empty-text">No photo session yet</p>
+      </aside>
+    </section>
+
+    <section class="booth-toolbar" aria-label="Photo booth effects">
+      <div class="effect-strip">
+        <button class="effect-chip selected" type="button" data-effect="normal">Normal</button>
+        <button class="effect-chip" type="button" data-effect="bw">B&amp;W</button>
+        <button class="effect-chip" type="button" data-effect="pop">Pop</button>
+        <button class="effect-chip" type="button" data-effect="warm">Warm</button>
+        <button class="effect-chip" type="button" data-effect="sunglasses">😎</button>
+        <button class="effect-chip" type="button" data-effect="crown">👑</button>
+        <button class="effect-chip birthday-chip" type="button" data-effect="gianna">Gianna's 11th!</button>
       </div>
+
+      <button id="takePhotosButton" class="take-button" type="button" disabled>
+        Take Photos
+      </button>
     </section>
 
     <section class="controls">
