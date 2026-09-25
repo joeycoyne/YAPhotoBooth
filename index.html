@@ -12,7 +12,7 @@
     <header class="topbar">
       <div>
         <h1>YAPhotoBooth</h1>
-        <p class="subtitle">4-photo booth test · v0.3</p>
+        <p class="subtitle">Persistent storage + effects · v0.4</p>
       </div>
       <span id="statusBadge" class="status-badge">Starting…</span>
     </header>
@@ -20,6 +20,12 @@
     <section class="booth-stage">
       <section class="preview-panel" aria-label="Camera preview">
         <video id="preview" autoplay playsinline muted></video>
+
+        <div id="stickerOverlay" class="sticker-overlay" aria-hidden="true">
+          <div id="crownSticker" class="live-sticker crown-sticker hidden">👑</div>
+          <div id="sunglassesSticker" class="live-sticker sunglasses-sticker hidden">🕶️</div>
+          <div id="birthdaySticker" class="live-sticker birthday-sticker hidden">Gianna's 11th!</div>
+        </div>
 
         <div id="previewMessage" class="preview-message">
           <div>
@@ -54,14 +60,22 @@
     </section>
 
     <section class="booth-toolbar" aria-label="Photo booth effects">
-      <div class="effect-strip">
-        <button class="effect-chip selected" type="button" data-effect="normal">Normal</button>
-        <button class="effect-chip" type="button" data-effect="bw">B&amp;W</button>
-        <button class="effect-chip" type="button" data-effect="pop">Pop</button>
-        <button class="effect-chip" type="button" data-effect="warm">Warm</button>
-        <button class="effect-chip" type="button" data-effect="sunglasses">😎</button>
-        <button class="effect-chip" type="button" data-effect="crown">👑</button>
-        <button class="effect-chip birthday-chip" type="button" data-effect="gianna">Gianna's 11th!</button>
+      <div class="effect-controls">
+        <div class="effect-row" aria-label="Photo filters">
+          <span class="effect-label">Filter</span>
+          <button class="filter-chip selected" type="button" data-filter="normal">Normal</button>
+          <button class="filter-chip" type="button" data-filter="bw">B&amp;W</button>
+          <button class="filter-chip" type="button" data-filter="pop">Pop</button>
+          <button class="filter-chip" type="button" data-filter="warm">Warm</button>
+        </div>
+
+        <div class="effect-row" aria-label="Photo stickers">
+          <span class="effect-label">Stickers</span>
+          <button class="sticker-chip" type="button" data-sticker="sunglasses" aria-pressed="false">😎</button>
+          <button class="sticker-chip" type="button" data-sticker="crown" aria-pressed="false">👑</button>
+          <button class="sticker-chip birthday-chip" type="button" data-sticker="gianna" aria-pressed="false">Gianna's 11th!</button>
+          <button id="clearStickersButton" class="clear-chip" type="button">Clear</button>
+        </div>
       </div>
 
       <button id="takePhotosButton" class="take-button" type="button" disabled>
