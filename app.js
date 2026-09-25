@@ -1,4 +1,7 @@
 const STORAGE_KEY = "yaphotobooth.selectedCameraId";
+const PHOTO_COUNT = 4;
+const INITIAL_COUNTDOWN_SECONDS = 4;
+const BETWEEN_PHOTO_SECONDS = 3;
 
 const preview = document.getElementById("preview");
 const cameraSelect = document.getElementById("cameraSelect");
@@ -10,9 +13,20 @@ const detailText = document.getElementById("detailText");
 const effectChips = [...document.querySelectorAll(".effect-chip")];
 const recentSession = document.getElementById("recentSession");
 const recentEmptyText = document.getElementById("recentEmptyText");
+const takePhotosButton = document.getElementById("takePhotosButton");
+const countdownOverlay = document.getElementById("countdownOverlay");
+const countdownLabel = document.getElementById("countdownLabel");
+const countdownNumber = document.getElementById("countdownNumber");
+const flashOverlay = document.getElementById("flashOverlay");
 
 let activeStream = null;
 let videoDevices = [];
+let isCapturing = false;
+let latestSession = [];
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function setStatus(text, kind = "") {
   statusBadge.textContent = text;
@@ -34,11 +48,19 @@ function hidePreviewMessage() {
   previewMessage.classList.add("hidden");
 }
 
+function setCaptureControlsEnabled(enabled) {
+  takePhotosButton.disabled = !enabled;
+  effectChips.forEach((chip) => {
+    chip.disabled = !enabled;
+  });
+}
+
 function stopActiveStream() {
   if (!activeStream) return;
   activeStream.getTracks().forEach((track) => track.stop());
   activeStream = null;
   preview.srcObject = null;
+  setCaptureControlsEnabled(false);
 }
 
 async function ensurePermission() {
@@ -84,9 +106,12 @@ function populateCameraList(devices) {
 }
 
 async function refreshCameras({ requestPermission = false } = {}) {
+  if (isCapturing) return;
+
   setStatus("Checking…");
   refreshButton.disabled = true;
   useCameraButton.disabled = true;
+  setCaptureControlsEnabled(false);
 
   try {
     if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
@@ -122,7 +147,10 @@ async function refreshCameras({ requestPermission = false } = {}) {
       return;
     }
 
-    setStatus(videoDevices.length ? "Choose camera" : "No camera", videoDevices.length ? "" : "error");
+    setStatus(
+      videoDevices.length ? "Choose camera" : "No camera",
+      videoDevices.length ? "" : "error"
+    );
     showPreviewMessage(
       videoDevices.length ? "Choose the photo booth camera" : "No cameras detected",
       videoDevices.length
@@ -146,7 +174,7 @@ async function refreshCameras({ requestPermission = false } = {}) {
 }
 
 async function startExactCamera(deviceId, saveChoice = true) {
-  if (!deviceId) return;
+  if (!deviceId || isCapturing) return;
 
   stopActiveStream();
   setStatus("Starting…");
@@ -182,6 +210,7 @@ async function startExactCamera(deviceId, saveChoice = true) {
     const selected = videoDevices.find((device) => device.deviceId === deviceId);
     setStatus("Camera ready", "ready");
     hidePreviewMessage();
+    setCaptureControlsEnabled(true);
     detailText.textContent =
       `Locked to: ${selected?.label || "selected camera"}`;
   } catch (error) {
@@ -204,37 +233,15 @@ async function startExactCamera(deviceId, saveChoice = true) {
   }
 }
 
-useCameraButton.addEventListener("click", () => {
-  startExactCamera(cameraSelect.value, true);
-});
-
-refreshButton.addEventListener("click", () => {
-  refreshCameras({ requestPermission: true });
-});
-
-navigator.mediaDevices?.addEventListener?.("devicechange", () => {
-  refreshCameras({ requestPermission: false });
-});
-
-window.addEventListener("beforeunload", stopActiveStream);
-
-refreshCameras({ requestPermission: true });
-
-
 function selectEffectChip(chip) {
+  if (isCapturing) return;
   effectChips.forEach((item) => item.classList.toggle("selected", item === chip));
 }
 
-effectChips.forEach((chip) => {
-  chip.addEventListener("click", () => selectEffectChip(chip));
-});
-
-// Replaces the four placeholders with the most recent 4-photo session.
-// Capture/storage code will call this with object URLs or data URLs.
 function renderRecentSession(imageUrls = []) {
   recentSession.innerHTML = "";
 
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < PHOTO_COUNT; index += 1) {
     const slot = document.createElement("div");
     slot.className = "recent-photo";
 
@@ -256,5 +263,115 @@ function renderRecentSession(imageUrls = []) {
   recentEmptyText.hidden = imageUrls.length > 0;
 }
 
-// Keep the layout deterministic until the capture feature lands.
+async function runCountdown(seconds, label) {
+  countdownLabel.textContent = label;
+  countdownOverlay.classList.remove("hidden");
+
+  for (let count = seconds; count >= 1; count -= 1) {
+    countdownNumber.textContent = String(count);
+    await delay(1000);
+  }
+
+  countdownOverlay.classList.add("hidden");
+}
+
+function triggerFlash() {
+  flashOverlay.classList.remove("flash");
+  // Force a reflow so the animation restarts for every shot.
+  void flashOverlay.offsetWidth;
+  flashOverlay.classList.add("flash");
+}
+
+function captureCurrentFrame() {
+  if (!preview.videoWidth || !preview.videoHeight) {
+    throw new Error("The camera preview is not ready to capture.");
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = preview.videoWidth;
+  canvas.height = preview.videoHeight;
+
+  const context = canvas.getContext("2d");
+  context.drawImage(preview, 0, 0, canvas.width, canvas.height);
+
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+async function capturePhotoSession() {
+  if (isCapturing || !activeStream) return;
+
+  isCapturing = true;
+  setCaptureControlsEnabled(false);
+  useCameraButton.disabled = true;
+  refreshButton.disabled = true;
+  cameraSelect.disabled = true;
+  setStatus("Photo session");
+  takePhotosButton.textContent = "Taking photos…";
+
+  const newSession = [];
+
+  try {
+    for (let index = 0; index < PHOTO_COUNT; index += 1) {
+      const countdownSeconds =
+        index === 0 ? INITIAL_COUNTDOWN_SECONDS : BETWEEN_PHOTO_SECONDS;
+      const label =
+        index === 0
+          ? "Get ready!"
+          : `Photo ${index + 1} of ${PHOTO_COUNT}`;
+
+      await runCountdown(countdownSeconds, label);
+
+      const image = captureCurrentFrame();
+      newSession.push(image);
+      triggerFlash();
+
+      setStatus(`Photo ${index + 1} / ${PHOTO_COUNT}`, "ready");
+    }
+
+    latestSession = newSession;
+    renderRecentSession(latestSession);
+    setStatus("Session complete", "ready");
+    takePhotosButton.textContent = "Take Photos";
+  } catch (error) {
+    console.error(error);
+    setStatus("Capture error", "error");
+    showPreviewMessage("Photo session stopped", error.message || String(error));
+  } finally {
+    countdownOverlay.classList.add("hidden");
+    isCapturing = false;
+    cameraSelect.disabled = false;
+    refreshButton.disabled = false;
+    useCameraButton.disabled = !cameraSelect.value;
+
+    if (activeStream) {
+      hidePreviewMessage();
+      setCaptureControlsEnabled(true);
+      if (takePhotosButton.textContent !== "Take Photos") {
+        takePhotosButton.textContent = "Take Photos";
+      }
+    }
+  }
+}
+
+useCameraButton.addEventListener("click", () => {
+  startExactCamera(cameraSelect.value, true);
+});
+
+refreshButton.addEventListener("click", () => {
+  refreshCameras({ requestPermission: true });
+});
+
+takePhotosButton.addEventListener("click", capturePhotoSession);
+
+effectChips.forEach((chip) => {
+  chip.addEventListener("click", () => selectEffectChip(chip));
+});
+
+navigator.mediaDevices?.addEventListener?.("devicechange", () => {
+  refreshCameras({ requestPermission: false });
+});
+
+window.addEventListener("beforeunload", stopActiveStream);
+
 renderRecentSession([]);
+refreshCameras({ requestPermission: true });
