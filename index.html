@@ -13,8 +13,8 @@
   <main class="app-shell">
     <header class="topbar">
       <div>
-        <h1>YAPhotoBooth</h1>
-        <p class="subtitle">Gallery + offline app · v0.7</p>
+        <h1 id="appTitle" class="admin-trigger" title="Press and hold for Admin">YAPhotoBooth</h1>
+        <p class="subtitle">Admin + session management · v0.8</p>
       </div>
       <div class="topbar-actions">
         <button id="openGalleryButton" class="nav-button" type="button">Gallery</button>
@@ -111,24 +111,51 @@
       </button>
     </section>
 
-    <section class="controls">
-      <label for="cameraSelect">Camera</label>
-      <select id="cameraSelect" aria-label="Choose camera"></select>
-
-      <div class="button-row">
-        <button id="useCameraButton" class="primary-button" type="button">
-          Use this camera
-        </button>
-        <button id="refreshButton" class="secondary-button" type="button">
-          Refresh cameras
-        </button>
-      </div>
-
-      <p id="detailText" class="detail-text">
-        Camera permission is required before Chrome can show camera names.
-      </p>
-    </section>
   </main>
+
+  <section id="adminView" class="admin-view hidden" aria-label="Admin portal">
+    <header class="admin-header">
+      <div>
+        <h2>Admin</h2>
+        <p>Camera setup and saved-session management</p>
+      </div>
+      <button id="closeAdminButton" class="gallery-back-button" type="button">Back to Booth</button>
+    </header>
+
+    <div class="admin-content">
+      <section class="admin-panel admin-camera-panel">
+        <h3>Camera Setup</h3>
+        <div class="controls admin-controls">
+          <label for="cameraSelect">Camera</label>
+          <select id="cameraSelect" aria-label="Choose camera"></select>
+
+          <div class="button-row">
+            <button id="useCameraButton" class="primary-button" type="button">
+              Use this camera
+            </button>
+            <button id="refreshButton" class="secondary-button" type="button">
+              Refresh cameras
+            </button>
+          </div>
+
+          <p id="detailText" class="detail-text">
+            Camera permission is required before Chrome can show camera names.
+          </p>
+        </div>
+      </section>
+
+      <section class="admin-panel admin-sessions-panel">
+        <div class="admin-section-heading">
+          <div>
+            <h3>Saved Sessions</h3>
+            <p id="adminSessionSummary">Loading saved sessions…</p>
+          </div>
+        </div>
+        <div id="adminSessionList" class="admin-session-list"></div>
+        <div id="adminSessionsEmpty" class="admin-empty hidden">No saved sessions.</div>
+      </section>
+    </div>
+  </section>
 
   <section id="galleryView" class="gallery-view hidden" aria-label="Photo gallery">
     <header class="gallery-header">
