@@ -37,6 +37,17 @@ const birthdaySticker = document.getElementById("birthdaySticker");
 const balloonBorder = document.getElementById("balloonBorder");
 const confettiBorder = document.getElementById("confettiBorder");
 const starBorder = document.getElementById("starBorder");
+const openGalleryButton = document.getElementById("openGalleryButton");
+const closeGalleryButton = document.getElementById("closeGalleryButton");
+const galleryView = document.getElementById("galleryView");
+const galleryGrid = document.getElementById("galleryGrid");
+const galleryEmpty = document.getElementById("galleryEmpty");
+const gallerySummary = document.getElementById("gallerySummary");
+const sessionViewer = document.getElementById("sessionViewer");
+const closeSessionViewerButton = document.getElementById("closeSessionViewerButton");
+const sessionViewerTitle = document.getElementById("sessionViewerTitle");
+const sessionViewerMeta = document.getElementById("sessionViewerMeta");
+const sessionViewerPhotos = document.getElementById("sessionViewerPhotos");
 
 let activeStream = null;
 let videoDevices = [];
@@ -44,6 +55,8 @@ let isCapturing = false;
 let selectedFilter = "normal";
 let selectedStickers = new Set();
 let recentObjectUrls = [];
+let galleryObjectUrls = [];
+let viewerObjectUrls = [];
 let dbPromise = null;
 
 function delay(ms) {
@@ -72,6 +85,7 @@ function hidePreviewMessage() {
 
 function setCaptureControlsEnabled(enabled) {
   takePhotosButton.disabled = !enabled;
+  openGalleryButton.disabled = !enabled;
   filterChips.forEach((chip) => {
     chip.disabled = !enabled;
   });
@@ -445,6 +459,172 @@ async function restoreLatestSession() {
   }
 }
 
+
+
+async function getAllSessions() {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(SESSION_STORE, "readonly");
+    const store = transaction.objectStore(SESSION_STORE);
+    const request = store.openCursor(null, "prev");
+    const sessions = [];
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(sessions);
+        return;
+      }
+      sessions.push(cursor.value);
+      cursor.continue();
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function clearGalleryObjectUrls() {
+  galleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  galleryObjectUrls = [];
+}
+
+function clearViewerObjectUrls() {
+  viewerObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  viewerObjectUrls = [];
+}
+
+function makePhotoUrl(photo, targetList) {
+  if (photo instanceof Blob) {
+    const url = URL.createObjectURL(photo);
+    targetList.push(url);
+    return url;
+  }
+
+  if (photo instanceof ArrayBuffer) {
+    const url = URL.createObjectURL(new Blob([photo], { type: "image/jpeg" }));
+    targetList.push(url);
+    return url;
+  }
+
+  return photo;
+}
+
+function formatSessionDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Saved session";
+
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function renderSessionViewer(session, displayNumber) {
+  clearViewerObjectUrls();
+  sessionViewerPhotos.innerHTML = "";
+
+  const photos = getStoredSessionPhotos(session);
+  photos.forEach((photo, index) => {
+    const frame = document.createElement("div");
+    frame.className = "session-viewer-photo";
+
+    const image = document.createElement("img");
+    image.src = makePhotoUrl(photo, viewerObjectUrls);
+    image.alt = "Session " + displayNumber + ", photo " + (index + 1);
+
+    frame.appendChild(image);
+    sessionViewerPhotos.appendChild(frame);
+  });
+
+  sessionViewerTitle.textContent = "Session " + displayNumber;
+  sessionViewerMeta.textContent = formatSessionDate(session.createdAt);
+  sessionViewer.classList.remove("hidden");
+}
+
+function closeSessionViewer() {
+  sessionViewer.classList.add("hidden");
+  clearViewerObjectUrls();
+  sessionViewerPhotos.innerHTML = "";
+}
+
+async function renderGallery() {
+  clearGalleryObjectUrls();
+  galleryGrid.innerHTML = "";
+
+  try {
+    const sessions = await getAllSessions();
+    gallerySummary.textContent =
+      sessions.length + " saved session" + (sessions.length === 1 ? "" : "s");
+    galleryEmpty.classList.toggle("hidden", sessions.length > 0);
+    galleryGrid.classList.toggle("hidden", sessions.length === 0);
+
+    sessions.forEach((session, index) => {
+      const displayNumber = sessions.length - index;
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "gallery-card";
+
+      const photosWrap = document.createElement("div");
+      photosWrap.className = "gallery-card-photos";
+
+      const photos = getStoredSessionPhotos(session);
+      for (let photoIndex = 0; photoIndex < PHOTO_COUNT; photoIndex += 1) {
+        const photoWrap = document.createElement("div");
+        photoWrap.className = "gallery-card-photo";
+
+        if (photos[photoIndex]) {
+          const image = document.createElement("img");
+          image.src = makePhotoUrl(photos[photoIndex], galleryObjectUrls);
+          image.alt = "Session " + displayNumber + ", photo " + (photoIndex + 1);
+          photoWrap.appendChild(image);
+        }
+
+        photosWrap.appendChild(photoWrap);
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "gallery-card-meta";
+
+      const title = document.createElement("span");
+      title.className = "gallery-card-title";
+      title.textContent = "Session " + displayNumber;
+
+      const time = document.createElement("span");
+      time.className = "gallery-card-time";
+      time.textContent = formatSessionDate(session.createdAt);
+
+      meta.append(title, time);
+      card.append(photosWrap, meta);
+      card.addEventListener("click", () => {
+        renderSessionViewer(session, displayNumber);
+      });
+
+      galleryGrid.appendChild(card);
+    });
+  } catch (error) {
+    console.error("Could not load gallery:", error);
+    gallerySummary.textContent = "Could not load saved sessions";
+    galleryEmpty.classList.remove("hidden");
+    galleryGrid.classList.add("hidden");
+  }
+}
+
+async function openGallery() {
+  if (isCapturing) return;
+  galleryView.classList.remove("hidden");
+  await renderGallery();
+}
+
+function closeGallery() {
+  closeSessionViewer();
+  galleryView.classList.add("hidden");
+  clearGalleryObjectUrls();
+  galleryGrid.innerHTML = "";
+}
+
 async function runCountdown(seconds, label) {
   countdownLabel.textContent = label;
   countdownOverlay.classList.remove("hidden");
@@ -739,6 +919,10 @@ stickerChips.forEach((chip) => {
 
 clearStickersButton.addEventListener("click", clearStickers);
 
+openGalleryButton.addEventListener("click", openGallery);
+closeGalleryButton.addEventListener("click", closeGallery);
+closeSessionViewerButton.addEventListener("click", closeSessionViewer);
+
 navigator.mediaDevices?.addEventListener?.("devicechange", () => {
   refreshCameras({ requestPermission: false });
 });
@@ -746,9 +930,20 @@ navigator.mediaDevices?.addEventListener?.("devicechange", () => {
 window.addEventListener("beforeunload", () => {
   stopActiveStream();
   clearRecentObjectUrls();
+  clearGalleryObjectUrls();
+  clearViewerObjectUrls();
 });
 
 updateLiveEffects();
 requestPersistentStorage();
 restoreLatestSession();
 refreshCameras({ requestPermission: true });
+
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+      console.warn("Service worker registration failed:", error);
+    });
+  });
+}
