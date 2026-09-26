@@ -1,0 +1,19 @@
+{
+  "name": "YAPhotoBooth",
+  "short_name": "Photo Booth",
+  "description": "Offline-first touchscreen photo booth for Chromebook.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape-primary",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
