@@ -1099,3 +1099,122 @@ select {
     width: 100%;
   }
 }
+
+
+/* Filmstrip viewer + export controls */
+.session-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewer-mode-button {
+  min-height: 44px;
+  border: 2px solid #4b5563;
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: #1f2937;
+  color: #f9fafb;
+  font-weight: 850;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.viewer-mode-button.selected {
+  border-color: #f59e0b;
+  background: #374151;
+}
+
+.session-viewer-filmstrip {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 4px;
+}
+
+.session-viewer-filmstrip img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
+}
+
+.admin-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-export-all-button,
+.download-session-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  padding: 7px 11px;
+  background: #2563eb;
+  color: white;
+  font-weight: 850;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.admin-export-all-button {
+  flex: 0 0 auto;
+}
+
+.admin-session-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.download-session-button,
+.admin-session-actions .delete-session-button {
+  width: 100%;
+  min-width: 90px;
+  min-height: 40px;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+}
+
+@media (min-width: 1000px) and (max-height: 850px) {
+  .session-viewer-actions {
+    gap: 6px;
+  }
+
+  .viewer-mode-button {
+    min-height: 40px;
+    padding: 6px 11px;
+  }
+
+  .admin-session-card {
+    grid-template-columns: 105px minmax(0, 1fr) 96px;
+  }
+
+  .admin-export-all-button {
+    min-height: 38px;
+  }
+}
+
+@media (max-width: 700px) {
+  .session-viewer-header {
+    flex-wrap: wrap;
+  }
+
+  .session-viewer-actions {
+    width: 100%;
+  }
+
+  .session-viewer-actions .gallery-back-button {
+    margin-left: auto;
+  }
+
+  .session-viewer-filmstrip img {
+    max-height: none;
+    width: min(100%, 520px);
+  }
+}
