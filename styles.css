@@ -129,16 +129,16 @@ h1 {
 }
 
 .birthday-sticker {
-  left: 3%;
-  bottom: 4%;
-  transform: none;
-  padding: 9px 18px;
-  border: 3px solid rgba(255, 255, 255, 0.9);
+  left: 50%;
+  bottom: 2.5%;
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 999px;
   background: rgba(124, 58, 237, 0.9);
   color: white;
-  font-size: clamp(1.25rem, 3vw, 2.2rem);
-  font-weight: 950;
+  font-size: clamp(0.9rem, 1.8vw, 1.35rem);
+  font-weight: 850;
   white-space: nowrap;
 }
 
@@ -182,6 +182,12 @@ h1 {
   text-shadow: 0 2px 0 rgba(0,0,0,0.35);
 }
 
+/* Keep stars clear of the balloons when both edge effects are enabled. */
+.star-border .edge-top-left { top: 17%; left: 2.5%; }
+.star-border .edge-top-right { top: 17%; right: 2.5%; }
+.star-border .edge-bottom-left { bottom: 17%; left: 2.5%; }
+.star-border .edge-bottom-right { bottom: 17%; right: 2.5%; }
+
 .confetti {
   width: 13px;
   height: 28px;
@@ -197,6 +203,10 @@ h1 {
 .confetti-f { bottom: 6%; right: 7%; transform: rotate(28deg); background: #ef4444; }
 .confetti-g { top: 20%; left: 1%; transform: rotate(42deg); background: #06b6d4; }
 .confetti-h { bottom: 24%; right: 1%; transform: rotate(-36deg); background: #facc15; }
+.confetti-i { top: 2%; left: 22%; transform: rotate(-52deg); background: #ef4444; }
+.confetti-j { top: 3%; right: 22%; transform: rotate(44deg); background: #a855f7; }
+.confetti-k { bottom: 2%; left: 25%; transform: rotate(24deg); background: #14b8a6; }
+.confetti-l { bottom: 3%; right: 24%; transform: rotate(-31deg); background: #fb7185; }
 
 .preview-message {
   position: absolute;
@@ -312,8 +322,9 @@ h1 {
 .recent-photo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  background: #000;
 }
 
 .recent-photo.empty {
