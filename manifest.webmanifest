@@ -1,7 +1,7 @@
 {
-  "name": "YAPhotoBooth",
-  "short_name": "Photo Booth",
-  "description": "Offline-first touchscreen photo booth for Chromebook.",
+  "name": "Party Booth",
+  "short_name": "Party Booth",
+  "description": "Offline-first Party Booth for Chromebook.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
