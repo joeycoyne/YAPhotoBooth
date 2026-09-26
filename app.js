@@ -701,23 +701,12 @@ async function renderAdminSessions() {
       deleteButton.className = "delete-session-button";
       deleteButton.textContent = "Delete";
 
-      let deleteArmed = false;
-      let resetTimer = null;
-
       deleteButton.addEventListener("click", async () => {
-        if (!deleteArmed) {
-          deleteArmed = true;
-          deleteButton.textContent = "Tap again";
-          deleteButton.classList.add("confirm-delete");
-          resetTimer = setTimeout(() => {
-            deleteArmed = false;
-            deleteButton.textContent = "Delete";
-            deleteButton.classList.remove("confirm-delete");
-          }, 4000);
-          return;
-        }
+        const confirmed = window.confirm(
+          "Delete Session " + displayNumber + "? This cannot be undone."
+        );
+        if (!confirmed) return;
 
-        if (resetTimer) clearTimeout(resetTimer);
         deleteButton.disabled = true;
         deleteButton.textContent = "Deleting…";
 
