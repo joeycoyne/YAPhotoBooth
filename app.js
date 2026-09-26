@@ -48,12 +48,17 @@ const closeSessionViewerButton = document.getElementById("closeSessionViewerButt
 const sessionViewerTitle = document.getElementById("sessionViewerTitle");
 const sessionViewerMeta = document.getElementById("sessionViewerMeta");
 const sessionViewerPhotos = document.getElementById("sessionViewerPhotos");
+const sessionViewerFilmstrip = document.getElementById("sessionViewerFilmstrip");
+const sessionFilmstripImage = document.getElementById("sessionFilmstripImage");
+const showSessionPhotosButton = document.getElementById("showSessionPhotosButton");
+const showFilmstripButton = document.getElementById("showFilmstripButton");
 const appTitle = document.getElementById("appTitle");
 const adminView = document.getElementById("adminView");
 const closeAdminButton = document.getElementById("closeAdminButton");
 const adminSessionList = document.getElementById("adminSessionList");
 const adminSessionsEmpty = document.getElementById("adminSessionsEmpty");
 const adminSessionSummary = document.getElementById("adminSessionSummary");
+const exportAllButton = document.getElementById("exportAllButton");
 
 let activeStream = null;
 let videoDevices = [];
@@ -65,6 +70,8 @@ let galleryObjectUrls = [];
 let viewerObjectUrls = [];
 let adminObjectUrls = [];
 let adminHoldTimer = null;
+let currentViewerSession = null;
+let currentViewerDisplayNumber = null;
 let dbPromise = null;
 
 function delay(ms) {
@@ -300,16 +307,20 @@ function openDatabase() {
 
 async function saveSession(photos, filter, stickers) {
   const db = await openDatabase();
+  const createdAt = new Date().toISOString();
+  const filmstripBlob = await generateFilmstripBlob(photos, createdAt);
   const renderedPhotos = await Promise.all(
     photos.map((photo) => photo.arrayBuffer())
   );
+
   const record = {
     id: Date.now(),
-    formatVersion: 2,
-    createdAt: new Date().toISOString(),
+    formatVersion: 3,
+    createdAt,
     filter,
     stickers: [...stickers],
     renderedPhotos,
+    filmstripJpeg: await filmstripBlob.arrayBuffer(),
   };
 
   await new Promise((resolve, reject) => {
@@ -456,6 +467,41 @@ function getStoredSessionPhotos(session) {
   return [];
 }
 
+function getStoredFilmstrip(session) {
+  if (session?.filmstripJpeg) {
+    return new Blob([session.filmstripJpeg], { type: "image/jpeg" });
+  }
+  return null;
+}
+
+async function persistSessionRecord(session) {
+  const db = await openDatabase();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(SESSION_STORE, "readwrite");
+    const store = transaction.objectStore(SESSION_STORE);
+    store.put(session);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+async function ensureSessionFilmstrip(session) {
+  const stored = getStoredFilmstrip(session);
+  if (stored) return stored;
+
+  const photos = getStoredSessionPhotos(session);
+  if (photos.length !== PHOTO_COUNT) {
+    throw new Error("This session does not contain four photos.");
+  }
+
+  const filmstripBlob = await generateFilmstripBlob(photos, session.createdAt);
+  session.filmstripJpeg = await filmstripBlob.arrayBuffer();
+  session.formatVersion = Math.max(session.formatVersion || 0, 3);
+  await persistSessionRecord(session);
+  return filmstripBlob;
+}
+
 async function restoreLatestSession() {
   try {
     const session = await getLatestSession();
@@ -529,9 +575,11 @@ function formatSessionDate(value) {
   });
 }
 
-function renderSessionViewer(session, displayNumber) {
+async function renderSessionViewer(session, displayNumber) {
   clearViewerObjectUrls();
   sessionViewerPhotos.innerHTML = "";
+  currentViewerSession = session;
+  currentViewerDisplayNumber = displayNumber;
 
   const photos = getStoredSessionPhotos(session);
   photos.forEach((photo, index) => {
@@ -548,13 +596,40 @@ function renderSessionViewer(session, displayNumber) {
 
   sessionViewerTitle.textContent = "Session " + displayNumber;
   sessionViewerMeta.textContent = formatSessionDate(session.createdAt);
+  showSessionPhotos();
   sessionViewer.classList.remove("hidden");
+
+  try {
+    const strip = await ensureSessionFilmstrip(session);
+    sessionFilmstripImage.src = makePhotoUrl(strip, viewerObjectUrls);
+  } catch (error) {
+    console.error("Could not create filmstrip:", error);
+    sessionFilmstripImage.removeAttribute("src");
+  }
+}
+
+function showSessionPhotos() {
+  sessionViewerPhotos.classList.remove("hidden");
+  sessionViewerFilmstrip.classList.add("hidden");
+  showSessionPhotosButton.classList.add("selected");
+  showFilmstripButton.classList.remove("selected");
+}
+
+function showSessionFilmstrip() {
+  sessionViewerPhotos.classList.add("hidden");
+  sessionViewerFilmstrip.classList.remove("hidden");
+  showSessionPhotosButton.classList.remove("selected");
+  showFilmstripButton.classList.add("selected");
 }
 
 function closeSessionViewer() {
   sessionViewer.classList.add("hidden");
   clearViewerObjectUrls();
   sessionViewerPhotos.innerHTML = "";
+  sessionFilmstripImage.removeAttribute("src");
+  currentViewerSession = null;
+  currentViewerDisplayNumber = null;
+  showSessionPhotos();
 }
 
 async function renderGallery() {
@@ -633,6 +708,138 @@ function closeGallery() {
 }
 
 
+
+function buildSessionBaseName(session, displayNumber) {
+  const date = new Date(session.createdAt);
+  const stamp = Number.isNaN(date.getTime())
+    ? String(session.id)
+    : [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+        String(date.getHours()).padStart(2, "0"),
+        String(date.getMinutes()).padStart(2, "0"),
+        String(date.getSeconds()).padStart(2, "0"),
+      ].join("-");
+  return "YAPhotoBooth_Session-" + String(displayNumber).padStart(3, "0") + "_" + stamp;
+}
+
+async function getSessionExportFiles(session, displayNumber) {
+  const base = buildSessionBaseName(session, displayNumber);
+  const photos = getStoredSessionPhotos(session);
+  const strip = await ensureSessionFilmstrip(session);
+
+  const files = [
+    { name: base + "_filmstrip.jpg", blob: strip },
+  ];
+
+  photos.forEach((photo, index) => {
+    files.push({
+      name: base + "_photo-" + (index + 1) + ".jpg",
+      blob: photo,
+    });
+  });
+
+  return files;
+}
+
+async function writeBlobToDirectory(directoryHandle, filename, blob) {
+  const fileHandle = await directoryHandle.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+function triggerBlobDownload(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function exportSession(session, displayNumber) {
+  try {
+    let directoryHandle = null;
+    if ("showDirectoryPicker" in window) {
+      directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    }
+
+    const files = await getSessionExportFiles(session, displayNumber);
+
+    if (directoryHandle) {
+      const folderName = buildSessionBaseName(session, displayNumber);
+      const sessionDirectory = await directoryHandle.getDirectoryHandle(folderName, { create: true });
+      for (const file of files) {
+        await writeBlobToDirectory(sessionDirectory, file.name, file.blob);
+      }
+      return;
+    }
+
+    files.forEach((file, index) => {
+      setTimeout(() => triggerBlobDownload(file.name, file.blob), index * 180);
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    console.error("Session export failed:", error);
+    window.alert("Could not export this session.");
+  }
+}
+
+async function exportAllSessions() {
+  let directoryHandle = null;
+
+  try {
+    if ("showDirectoryPicker" in window) {
+      directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    }
+
+    const sessions = await getAllSessions();
+    if (!sessions.length) return;
+
+    exportAllButton.disabled = true;
+    exportAllButton.textContent = "Exporting…";
+
+    for (let index = 0; index < sessions.length; index += 1) {
+      const session = sessions[index];
+      const displayNumber = sessions.length - index;
+      const files = await getSessionExportFiles(session, displayNumber);
+
+      if (directoryHandle) {
+        const folderName = buildSessionBaseName(session, displayNumber);
+        const sessionDirectory = await directoryHandle.getDirectoryHandle(folderName, { create: true });
+        for (const file of files) {
+          await writeBlobToDirectory(sessionDirectory, file.name, file.blob);
+        }
+      } else {
+        files.forEach((file, fileIndex) => {
+          const overallDelay = (index * 5 + fileIndex) * 180;
+          setTimeout(() => triggerBlobDownload(file.name, file.blob), overallDelay);
+        });
+      }
+    }
+
+    exportAllButton.textContent = "Exported";
+    setTimeout(() => {
+      exportAllButton.textContent = "Export All";
+      exportAllButton.disabled = false;
+    }, 1400);
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      exportAllButton.textContent = "Export All";
+      exportAllButton.disabled = false;
+      return;
+    }
+
+    console.error("Export all failed:", error);
+    exportAllButton.textContent = "Export failed";
+    exportAllButton.disabled = false;
+  }
+}
+
 async function deleteSessionById(sessionId) {
   const db = await openDatabase();
 
@@ -696,6 +903,17 @@ async function renderAdminSessions() {
 
       info.append(title, time);
 
+      const actions = document.createElement("div");
+      actions.className = "admin-session-actions";
+
+      const downloadButton = document.createElement("button");
+      downloadButton.type = "button";
+      downloadButton.className = "download-session-button";
+      downloadButton.textContent = "Download";
+      downloadButton.addEventListener("click", () => {
+        exportSession(session, displayNumber);
+      });
+
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.className = "delete-session-button";
@@ -721,7 +939,8 @@ async function renderAdminSessions() {
         }
       });
 
-      card.append(thumbs, info, deleteButton);
+      actions.append(downloadButton, deleteButton);
+      card.append(thumbs, info, actions);
       adminSessionList.appendChild(card);
     });
   } catch (error) {
@@ -947,6 +1166,114 @@ function canvasToJpegBlob(canvas) {
   });
 }
 
+async function blobToImageBitmap(blob) {
+  if ("createImageBitmap" in window) {
+    return createImageBitmap(blob);
+  }
+
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(blob);
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not decode a saved photo."));
+    };
+    image.src = url;
+  });
+}
+
+function drawImageContain(context, image, x, y, width, height) {
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+  const scale = Math.min(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const drawX = x + (width - drawWidth) / 2;
+  const drawY = y + (height - drawHeight) / 2;
+
+  context.fillStyle = "#000000";
+  context.fillRect(x, y, width, height);
+  context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+}
+
+function formatFilmstripDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+async function generateFilmstripBlob(photos, createdAt) {
+  const WIDTH = 1200;
+  const HEIGHT = 3000;
+  const MARGIN_X = 60;
+  const PHOTO_WIDTH = WIDTH - MARGIN_X * 2;
+  const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH * 9 / 16);
+  const GAP = 24;
+  const HEADER_HEIGHT = 190;
+  const FOOTER_HEIGHT = 140;
+  const photosHeight = PHOTO_HEIGHT * PHOTO_COUNT + GAP * (PHOTO_COUNT - 1);
+  const contentHeight = HEADER_HEIGHT + photosHeight + FOOTER_HEIGHT;
+  const topOffset = Math.max(20, Math.floor((HEIGHT - contentHeight) / 2));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
+  const context = canvas.getContext("2d");
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, WIDTH, HEIGHT);
+
+  context.fillStyle = "#7c3aed";
+  context.fillRect(0, 0, WIDTH, 18);
+  context.fillRect(0, HEIGHT - 18, WIDTH, 18);
+
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "#111827";
+  context.font = "900 78px system-ui, sans-serif";
+  context.fillText("Gianna's 11th!", WIDTH / 2, topOffset + 70);
+
+  context.font = "500 30px system-ui, sans-serif";
+  context.fillStyle = "#6b7280";
+  context.fillText("Photo Booth", WIDTH / 2, topOffset + 132);
+
+  const bitmaps = await Promise.all(photos.map((photo) => blobToImageBitmap(photo)));
+
+  try {
+    let y = topOffset + HEADER_HEIGHT;
+
+    bitmaps.forEach((image) => {
+      context.fillStyle = "#111827";
+      context.fillRect(MARGIN_X - 5, y - 5, PHOTO_WIDTH + 10, PHOTO_HEIGHT + 10);
+      drawImageContain(context, image, MARGIN_X, y, PHOTO_WIDTH, PHOTO_HEIGHT);
+      y += PHOTO_HEIGHT + GAP;
+    });
+
+    const footerY = topOffset + HEADER_HEIGHT + photosHeight + 56;
+    context.fillStyle = "#111827";
+    context.font = "700 34px system-ui, sans-serif";
+    context.fillText(formatFilmstripDate(createdAt), WIDTH / 2, footerY);
+
+    context.fillStyle = "#7c3aed";
+    context.font = "700 24px system-ui, sans-serif";
+    context.fillText("YAPhotoBooth", WIDTH / 2, footerY + 52);
+  } finally {
+    bitmaps.forEach((image) => {
+      if (typeof image.close === "function") image.close();
+    });
+  }
+
+  return canvasToJpegBlob(canvas);
+}
+
 async function captureCurrentFrame(filterName, stickers) {
   if (!preview.videoWidth || !preview.videoHeight) {
     throw new Error("The camera preview is not ready to capture.");
@@ -1060,7 +1387,10 @@ clearStickersButton.addEventListener("click", clearStickers);
 openGalleryButton.addEventListener("click", openGallery);
 closeGalleryButton.addEventListener("click", closeGallery);
 closeSessionViewerButton.addEventListener("click", closeSessionViewer);
+showSessionPhotosButton.addEventListener("click", showSessionPhotos);
+showFilmstripButton.addEventListener("click", showSessionFilmstrip);
 closeAdminButton.addEventListener("click", closeAdmin);
+exportAllButton.addEventListener("click", exportAllSessions);
 
 appTitle.addEventListener("pointerdown", startAdminHold);
 appTitle.addEventListener("pointerup", cancelAdminHold);
