@@ -48,6 +48,12 @@ const closeSessionViewerButton = document.getElementById("closeSessionViewerButt
 const sessionViewerTitle = document.getElementById("sessionViewerTitle");
 const sessionViewerMeta = document.getElementById("sessionViewerMeta");
 const sessionViewerPhotos = document.getElementById("sessionViewerPhotos");
+const appTitle = document.getElementById("appTitle");
+const adminView = document.getElementById("adminView");
+const closeAdminButton = document.getElementById("closeAdminButton");
+const adminSessionList = document.getElementById("adminSessionList");
+const adminSessionsEmpty = document.getElementById("adminSessionsEmpty");
+const adminSessionSummary = document.getElementById("adminSessionSummary");
 
 let activeStream = null;
 let videoDevices = [];
@@ -57,6 +63,8 @@ let selectedStickers = new Set();
 let recentObjectUrls = [];
 let galleryObjectUrls = [];
 let viewerObjectUrls = [];
+let adminObjectUrls = [];
+let adminHoldTimer = null;
 let dbPromise = null;
 
 function delay(ms) {
@@ -624,6 +632,146 @@ function closeGallery() {
   galleryGrid.innerHTML = "";
 }
 
+
+async function deleteSessionById(sessionId) {
+  const db = await openDatabase();
+
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(SESSION_STORE, "readwrite");
+    const store = transaction.objectStore(SESSION_STORE);
+    store.delete(sessionId);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+function clearAdminObjectUrls() {
+  adminObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  adminObjectUrls = [];
+}
+
+async function renderAdminSessions() {
+  clearAdminObjectUrls();
+  adminSessionList.innerHTML = "";
+
+  try {
+    const sessions = await getAllSessions();
+    adminSessionSummary.textContent =
+      sessions.length + " saved session" + (sessions.length === 1 ? "" : "s");
+    adminSessionsEmpty.classList.toggle("hidden", sessions.length > 0);
+    adminSessionList.classList.toggle("hidden", sessions.length === 0);
+
+    sessions.forEach((session, index) => {
+      const displayNumber = sessions.length - index;
+      const card = document.createElement("div");
+      card.className = "admin-session-card";
+
+      const thumbs = document.createElement("div");
+      thumbs.className = "admin-session-thumbs";
+
+      const photos = getStoredSessionPhotos(session);
+      for (let photoIndex = 0; photoIndex < PHOTO_COUNT; photoIndex += 1) {
+        const thumb = document.createElement("div");
+        thumb.className = "admin-session-thumb";
+
+        if (photos[photoIndex]) {
+          const image = document.createElement("img");
+          image.src = makePhotoUrl(photos[photoIndex], adminObjectUrls);
+          image.alt = "Session " + displayNumber + ", photo " + (photoIndex + 1);
+          thumb.appendChild(image);
+        }
+
+        thumbs.appendChild(thumb);
+      }
+
+      const info = document.createElement("div");
+      info.className = "admin-session-info";
+
+      const title = document.createElement("strong");
+      title.textContent = "Session " + displayNumber;
+
+      const time = document.createElement("span");
+      time.textContent = formatSessionDate(session.createdAt);
+
+      info.append(title, time);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "delete-session-button";
+      deleteButton.textContent = "Delete";
+
+      let deleteArmed = false;
+      let resetTimer = null;
+
+      deleteButton.addEventListener("click", async () => {
+        if (!deleteArmed) {
+          deleteArmed = true;
+          deleteButton.textContent = "Tap again";
+          deleteButton.classList.add("confirm-delete");
+          resetTimer = setTimeout(() => {
+            deleteArmed = false;
+            deleteButton.textContent = "Delete";
+            deleteButton.classList.remove("confirm-delete");
+          }, 4000);
+          return;
+        }
+
+        if (resetTimer) clearTimeout(resetTimer);
+        deleteButton.disabled = true;
+        deleteButton.textContent = "Deleting…";
+
+        try {
+          await deleteSessionById(session.id);
+          await renderAdminSessions();
+          await restoreLatestSession();
+        } catch (error) {
+          console.error("Could not delete session:", error);
+          deleteButton.disabled = false;
+          deleteButton.textContent = "Delete failed";
+        }
+      });
+
+      card.append(thumbs, info, deleteButton);
+      adminSessionList.appendChild(card);
+    });
+  } catch (error) {
+    console.error("Could not load admin sessions:", error);
+    adminSessionSummary.textContent = "Could not load saved sessions";
+    adminSessionsEmpty.classList.remove("hidden");
+    adminSessionsEmpty.textContent = "Saved sessions could not be loaded.";
+    adminSessionList.classList.add("hidden");
+  }
+}
+
+async function openAdmin() {
+  if (isCapturing) return;
+  closeGallery();
+  adminView.classList.remove("hidden");
+  await renderAdminSessions();
+}
+
+function closeAdmin() {
+  adminView.classList.add("hidden");
+  clearAdminObjectUrls();
+  adminSessionList.innerHTML = "";
+}
+
+function startAdminHold() {
+  if (isCapturing || adminHoldTimer) return;
+
+  adminHoldTimer = setTimeout(() => {
+    adminHoldTimer = null;
+    openAdmin();
+  }, 3000);
+}
+
+function cancelAdminHold() {
+  if (!adminHoldTimer) return;
+  clearTimeout(adminHoldTimer);
+  adminHoldTimer = null;
+}
+
 async function runCountdown(seconds, label) {
   countdownLabel.textContent = label;
   countdownOverlay.classList.remove("hidden");
@@ -923,6 +1071,13 @@ clearStickersButton.addEventListener("click", clearStickers);
 openGalleryButton.addEventListener("click", openGallery);
 closeGalleryButton.addEventListener("click", closeGallery);
 closeSessionViewerButton.addEventListener("click", closeSessionViewer);
+closeAdminButton.addEventListener("click", closeAdmin);
+
+appTitle.addEventListener("pointerdown", startAdminHold);
+appTitle.addEventListener("pointerup", cancelAdminHold);
+appTitle.addEventListener("pointercancel", cancelAdminHold);
+appTitle.addEventListener("pointerleave", cancelAdminHold);
+appTitle.addEventListener("contextmenu", (event) => event.preventDefault());
 
 navigator.mediaDevices?.addEventListener?.("devicechange", () => {
   refreshCameras({ requestPermission: false });
@@ -933,6 +1088,8 @@ window.addEventListener("beforeunload", () => {
   clearRecentObjectUrls();
   clearGalleryObjectUrls();
   clearViewerObjectUrls();
+  clearAdminObjectUrls();
+  cancelAdminHold();
 });
 
 updateLiveEffects();
