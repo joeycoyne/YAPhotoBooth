@@ -1,4 +1,4 @@
-const CACHE_NAME = "yaphotobooth-v0.9";
+const CACHE_NAME = "yaphotobooth-v1.0";
 const APP_SHELL = [
   "./",
   "./index.html",
