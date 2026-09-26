@@ -727,7 +727,9 @@ function buildSessionBaseName(session, displayNumber) {
         String(date.getMinutes()).padStart(2, "0"),
         String(date.getSeconds()).padStart(2, "0"),
       ].join("-");
-  return "Party_Booth_Session-" + String(displayNumber).padStart(3, "0") + "_" + stamp;
+
+  const stableSuffix = String(session.id).slice(-6);
+  return "Party_Booth_" + stamp + "_" + stableSuffix;
 }
 
 async function getSessionExportFiles(session, displayNumber) {
