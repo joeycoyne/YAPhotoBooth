@@ -14,7 +14,7 @@
     <header class="topbar">
       <div>
         <h1 id="appTitle" class="admin-trigger" title="Press and hold for Admin">YAPhotoBooth</h1>
-        <p class="subtitle">Admin layout polish · v0.9</p>
+        <p class="subtitle">Filmstrips + export · v1.0</p>
       </div>
       <div class="topbar-actions">
         <button id="openGalleryButton" class="nav-button" type="button">Gallery</button>
@@ -150,6 +150,7 @@
             <h3>Saved Sessions</h3>
             <p id="adminSessionSummary">Loading saved sessions…</p>
           </div>
+          <button id="exportAllButton" class="admin-export-all-button" type="button">Export All</button>
         </div>
         <div id="adminSessionList" class="admin-session-list"></div>
         <div id="adminSessionsEmpty" class="admin-empty hidden">No saved sessions.</div>
@@ -183,9 +184,16 @@
         <h2 id="sessionViewerTitle">Photo Session</h2>
         <p id="sessionViewerMeta"></p>
       </div>
-      <button id="closeSessionViewerButton" class="gallery-back-button" type="button">Back to Gallery</button>
+      <div class="session-viewer-actions">
+        <button id="showSessionPhotosButton" class="viewer-mode-button selected" type="button">4 Photos</button>
+        <button id="showFilmstripButton" class="viewer-mode-button" type="button">Filmstrip</button>
+        <button id="closeSessionViewerButton" class="gallery-back-button" type="button">Back to Gallery</button>
+      </div>
     </header>
     <div id="sessionViewerPhotos" class="session-viewer-photos"></div>
+    <div id="sessionViewerFilmstrip" class="session-viewer-filmstrip hidden">
+      <img id="sessionFilmstripImage" alt="Four-photo filmstrip">
+    </div>
   </section>
 
   <script src="app.js"></script>
