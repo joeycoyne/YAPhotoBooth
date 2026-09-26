@@ -6,6 +6,7 @@ const BETWEEN_PHOTO_SECONDS = 3;
 const DB_NAME = "YAPhotoBoothDB";
 const DB_VERSION = 1;
 const SESSION_STORE = "sessions";
+const FILMSTRIP_VERSION = 2;
 
 const FILTERS = {
   normal: { css: "none", canvas: "none" },
@@ -321,6 +322,7 @@ async function saveSession(photos, filter, stickers) {
     stickers: [...stickers],
     renderedPhotos,
     filmstripJpeg: await filmstripBlob.arrayBuffer(),
+    filmstripVersion: FILMSTRIP_VERSION,
   };
 
   await new Promise((resolve, reject) => {
@@ -468,7 +470,10 @@ function getStoredSessionPhotos(session) {
 }
 
 function getStoredFilmstrip(session) {
-  if (session?.filmstripJpeg) {
+  if (
+    session?.filmstripJpeg &&
+    session?.filmstripVersion === FILMSTRIP_VERSION
+  ) {
     return new Blob([session.filmstripJpeg], { type: "image/jpeg" });
   }
   return null;
@@ -497,6 +502,7 @@ async function ensureSessionFilmstrip(session) {
 
   const filmstripBlob = await generateFilmstripBlob(photos, session.createdAt);
   session.filmstripJpeg = await filmstripBlob.arrayBuffer();
+  session.filmstripVersion = FILMSTRIP_VERSION;
   session.formatVersion = Math.max(session.formatVersion || 0, 3);
   await persistSessionRecord(session);
   return filmstripBlob;
@@ -721,7 +727,7 @@ function buildSessionBaseName(session, displayNumber) {
         String(date.getMinutes()).padStart(2, "0"),
         String(date.getSeconds()).padStart(2, "0"),
       ].join("-");
-  return "YAPhotoBooth_Session-" + String(displayNumber).padStart(3, "0") + "_" + stamp;
+  return "Party_Booth_Session-" + String(displayNumber).padStart(3, "0") + "_" + stamp;
 }
 
 async function getSessionExportFiles(session, displayNumber) {
@@ -744,10 +750,28 @@ async function getSessionExportFiles(session, displayNumber) {
 }
 
 async function writeBlobToDirectory(directoryHandle, filename, blob) {
+  try {
+    await directoryHandle.removeEntry(filename);
+  } catch (error) {
+    if (error?.name !== "NotFoundError") {
+      console.warn("Could not remove existing export before replacement:", filename, error);
+    }
+  }
+
   const fileHandle = await directoryHandle.getFileHandle(filename, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(blob);
-  await writable.close();
+
+  try {
+    await writable.write(blob);
+    await writable.close();
+  } catch (error) {
+    try {
+      await writable.abort();
+    } catch (_) {
+      // Ignore abort failures; preserve the original write error.
+    }
+    throw error;
+  }
 }
 
 function triggerBlobDownload(filename, blob) {
@@ -794,7 +818,11 @@ async function exportAllSessions() {
 
   try {
     if ("showDirectoryPicker" in window) {
-      directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      const chosenDirectory = await window.showDirectoryPicker({ mode: "readwrite" });
+      directoryHandle = await chosenDirectory.getDirectoryHandle(
+        "Party Booth Export",
+        { create: true }
+      );
     }
 
     const sessions = await getAllSessions();
@@ -803,30 +831,58 @@ async function exportAllSessions() {
     exportAllButton.disabled = true;
     exportAllButton.textContent = "Exporting…";
 
+    let succeeded = 0;
+    let failed = 0;
+
     for (let index = 0; index < sessions.length; index += 1) {
       const session = sessions[index];
       const displayNumber = sessions.length - index;
-      const files = await getSessionExportFiles(session, displayNumber);
 
-      if (directoryHandle) {
-        const folderName = buildSessionBaseName(session, displayNumber);
-        const sessionDirectory = await directoryHandle.getDirectoryHandle(folderName, { create: true });
-        for (const file of files) {
-          await writeBlobToDirectory(sessionDirectory, file.name, file.blob);
+      try {
+        const files = await getSessionExportFiles(session, displayNumber);
+
+        if (directoryHandle) {
+          const folderName = buildSessionBaseName(session, displayNumber);
+          const sessionDirectory = await directoryHandle.getDirectoryHandle(
+            folderName,
+            { create: true }
+          );
+
+          for (const file of files) {
+            await writeBlobToDirectory(sessionDirectory, file.name, file.blob);
+          }
+        } else {
+          files.forEach((file, fileIndex) => {
+            const overallDelay = (index * 5 + fileIndex) * 220;
+            setTimeout(
+              () => triggerBlobDownload(file.name, file.blob),
+              overallDelay
+            );
+          });
         }
-      } else {
-        files.forEach((file, fileIndex) => {
-          const overallDelay = (index * 5 + fileIndex) * 180;
-          setTimeout(() => triggerBlobDownload(file.name, file.blob), overallDelay);
-        });
+
+        succeeded += 1;
+      } catch (sessionError) {
+        failed += 1;
+        console.error(
+          "Could not export Session " + displayNumber + ":",
+          sessionError
+        );
       }
     }
 
-    exportAllButton.textContent = "Exported";
+    if (failed === 0) {
+      exportAllButton.textContent =
+        succeeded + " exported";
+    } else {
+      exportAllButton.textContent =
+        succeeded + " exported · " + failed + " failed";
+    }
+
     setTimeout(() => {
       exportAllButton.textContent = "Export All";
       exportAllButton.disabled = false;
-    }, 1400);
+    }, 2600);
   } catch (error) {
     if (error?.name === "AbortError") {
       exportAllButton.textContent = "Export All";
@@ -834,7 +890,7 @@ async function exportAllSessions() {
       return;
     }
 
-    console.error("Export all failed:", error);
+    console.error("Export all failed before session export began:", error);
     exportAllButton.textContent = "Export failed";
     exportAllButton.disabled = false;
   }
@@ -1213,12 +1269,13 @@ function formatFilmstripDate(value) {
 async function generateFilmstripBlob(photos, createdAt) {
   const WIDTH = 1200;
   const HEIGHT = 3000;
-  const MARGIN_X = 60;
-  const PHOTO_WIDTH = WIDTH - MARGIN_X * 2;
+  const FILM_EDGE = 128;
+  const PHOTO_X = 150;
+  const PHOTO_WIDTH = WIDTH - PHOTO_X * 2;
   const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH * 9 / 16);
-  const GAP = 24;
-  const HEADER_HEIGHT = 190;
-  const FOOTER_HEIGHT = 140;
+  const GAP = 34;
+  const HEADER_HEIGHT = 250;
+  const FOOTER_HEIGHT = 180;
   const photosHeight = PHOTO_HEIGHT * PHOTO_COUNT + GAP * (PHOTO_COUNT - 1);
   const contentHeight = HEADER_HEIGHT + photosHeight + FOOTER_HEIGHT;
   const topOffset = Math.max(20, Math.floor((HEIGHT - contentHeight) / 2));
@@ -1228,43 +1285,94 @@ async function generateFilmstripBlob(photos, createdAt) {
   canvas.height = HEIGHT;
   const context = canvas.getContext("2d");
 
-  context.fillStyle = "#ffffff";
+  // Dark film stock.
+  context.fillStyle = "#181612";
   context.fillRect(0, 0, WIDTH, HEIGHT);
 
-  context.fillStyle = "#7c3aed";
-  context.fillRect(0, 0, WIDTH, 18);
-  context.fillRect(0, HEIGHT - 18, WIDTH, 18);
+  // Slightly warmer inner film lane.
+  context.fillStyle = "#24201a";
+  context.fillRect(FILM_EDGE, 0, WIDTH - FILM_EDGE * 2, HEIGHT);
+
+  // Old 35mm-style sprocket holes down both sides.
+  const holeWidth = 48;
+  const holeHeight = 70;
+  const holeRadius = 8;
+  const holeGap = 26;
+  const leftHoleX = 34;
+  const rightHoleX = WIDTH - leftHoleX - holeWidth;
+
+  context.fillStyle = "#e7ddc8";
+  for (let y = 24; y < HEIGHT - holeHeight; y += holeHeight + holeGap) {
+    drawRoundedRect(context, leftHoleX, y, holeWidth, holeHeight, holeRadius);
+    context.fill();
+    drawRoundedRect(context, rightHoleX, y, holeWidth, holeHeight, holeRadius);
+    context.fill();
+  }
+
+  // Subtle frame guide lines.
+  context.strokeStyle = "#6f6555";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.moveTo(FILM_EDGE - 18, 0);
+  context.lineTo(FILM_EDGE - 18, HEIGHT);
+  context.moveTo(WIDTH - FILM_EDGE + 18, 0);
+  context.lineTo(WIDTH - FILM_EDGE + 18, HEIGHT);
+  context.stroke();
 
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillStyle = "#111827";
-  context.font = "900 78px system-ui, sans-serif";
-  context.fillText("Gianna's 11th!", WIDTH / 2, topOffset + 70);
+  context.fillStyle = "#f1e7d2";
+  context.font = "900 78px Georgia, serif";
+  context.fillText("Gianna's 11th!", WIDTH / 2, topOffset + 82);
 
-  context.font = "500 30px system-ui, sans-serif";
-  context.fillStyle = "#6b7280";
-  context.fillText("Photo Booth", WIDTH / 2, topOffset + 132);
+  context.font = "600 28px Georgia, serif";
+  context.fillStyle = "#c5b99f";
+  context.fillText("PARTY BOOTH", WIDTH / 2, topOffset + 148);
 
   const bitmaps = await Promise.all(photos.map((photo) => blobToImageBitmap(photo)));
 
   try {
     let y = topOffset + HEADER_HEIGHT;
 
-    bitmaps.forEach((image) => {
-      context.fillStyle = "#111827";
-      context.fillRect(MARGIN_X - 5, y - 5, PHOTO_WIDTH + 10, PHOTO_HEIGHT + 10);
-      drawImageContain(context, image, MARGIN_X, y, PHOTO_WIDTH, PHOTO_HEIGHT);
+    bitmaps.forEach((image, index) => {
+      // Cream frame keyline and deep black photo surround.
+      context.fillStyle = "#d8ccb2";
+      context.fillRect(PHOTO_X - 8, y - 8, PHOTO_WIDTH + 16, PHOTO_HEIGHT + 16);
+      context.fillStyle = "#050505";
+      context.fillRect(PHOTO_X - 4, y - 4, PHOTO_WIDTH + 8, PHOTO_HEIGHT + 8);
+      drawImageContain(context, image, PHOTO_X, y, PHOTO_WIDTH, PHOTO_HEIGHT);
+
+      // Small frame number markings in the film margin.
+      context.fillStyle = "#c5b99f";
+      context.font = "700 26px ui-monospace, monospace";
+      context.textAlign = "center";
+      context.fillText(
+        String(index + 1).padStart(2, "0"),
+        FILM_EDGE / 2,
+        y + PHOTO_HEIGHT / 2
+      );
+      context.fillText(
+        String(index + 1).padStart(2, "0"),
+        WIDTH - FILM_EDGE / 2,
+        y + PHOTO_HEIGHT / 2
+      );
+
       y += PHOTO_HEIGHT + GAP;
     });
 
-    const footerY = topOffset + HEADER_HEIGHT + photosHeight + 56;
-    context.fillStyle = "#111827";
-    context.font = "700 34px system-ui, sans-serif";
+    const footerY = topOffset + HEADER_HEIGHT + photosHeight + 66;
+    context.textAlign = "center";
+    context.fillStyle = "#f1e7d2";
+    context.font = "700 34px Georgia, serif";
     context.fillText(formatFilmstripDate(createdAt), WIDTH / 2, footerY);
 
-    context.fillStyle = "#7c3aed";
-    context.font = "700 24px system-ui, sans-serif";
-    context.fillText("YAPhotoBooth", WIDTH / 2, footerY + 52);
+    // A restrained decorative rule, without any application branding.
+    context.strokeStyle = "#9c8f76";
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(WIDTH / 2 - 150, footerY + 54);
+    context.lineTo(WIDTH / 2 + 150, footerY + 54);
+    context.stroke();
   } finally {
     bitmaps.forEach((image) => {
       if (typeof image.close === "function") image.close();
