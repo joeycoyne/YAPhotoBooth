@@ -917,7 +917,7 @@ select {
 .admin-content {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(520px, 1.4fr) minmax(360px, 0.9fr);
   gap: 12px;
 }
 
@@ -939,6 +939,28 @@ select {
 .admin-controls {
   align-self: start;
   background: #111827;
+  display: block !important;
+}
+
+.admin-controls label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.admin-controls select {
+  width: 100%;
+  min-height: 52px;
+}
+
+.admin-controls .button-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px;
+  margin-top: 10px !important;
+}
+
+.admin-controls .detail-text {
+  margin: 9px 2px 0 !important;
 }
 
 .admin-sessions-panel {
@@ -958,7 +980,7 @@ select {
 
 .admin-session-card {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) auto;
+  grid-template-columns: 120px minmax(0, 1fr) 92px;
   gap: 12px;
   align-items: center;
   border: 1px solid #4b5563;
@@ -1003,7 +1025,7 @@ select {
 }
 
 .delete-session-button {
-  min-width: 112px;
+  min-width: 88px;
   min-height: 48px;
   border: 0;
   border-radius: 12px;
@@ -1013,10 +1035,6 @@ select {
   font-weight: 900;
   cursor: pointer;
   touch-action: manipulation;
-}
-
-.delete-session-button.confirm-delete {
-  background: #dc2626;
 }
 
 .admin-empty {
@@ -1042,7 +1060,7 @@ select {
   }
 
   .admin-content {
-    grid-template-columns: 390px minmax(0, 1fr);
+    grid-template-columns: minmax(620px, 1.45fr) minmax(390px, 0.85fr);
     gap: 9px;
   }
 
@@ -1051,14 +1069,15 @@ select {
   }
 
   .admin-session-card {
-    grid-template-columns: 145px minmax(0, 1fr) 115px;
-    gap: 9px;
+    grid-template-columns: 105px minmax(0, 1fr) 86px;
+    gap: 8px;
     padding: 7px;
   }
 
   .delete-session-button {
-    min-width: 105px;
+    min-width: 82px;
     min-height: 44px;
+    padding-inline: 9px;
   }
 }
 
