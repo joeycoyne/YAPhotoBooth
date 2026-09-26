@@ -535,6 +535,9 @@ function drawEdgeDecorations(context, width, height, stickers) {
       [0.02,0.22,42,"#06b6d4"], [0.98,0.73,-36,"#facc15"],
       [0.16,0.025,52,"#ef4444"], [0.82,0.025,-44,"#a855f7"],
       [0.14,0.975,-24,"#14b8a6"], [0.84,0.975,31,"#fb7185"],
+      [0.26,0.035,-17,"#f97316"], [0.73,0.04,23,"#10b981"],
+      [0.25,0.955,34,"#0ea5e9"], [0.75,0.96,-29,"#e879f9"],
+      [0.035,0.63,-48,"#84cc16"], [0.965,0.58,51,"#fb923c"],
     ];
     const pieceW = Math.max(8, width * 0.009);
     const pieceH = Math.max(16, height * 0.035);
@@ -550,8 +553,8 @@ function drawEdgeDecorations(context, width, height, stickers) {
 
   if (stickers.has("stars")) {
     const positions = [
-      [0.05,0.08], [0.95,0.08], [0.04,0.92], [0.96,0.92],
-      [0.02,0.48], [0.98,0.48]
+      [0.055,0.19], [0.945,0.19], [0.055,0.81], [0.945,0.81],
+      [0.025,0.48], [0.975,0.48]
     ];
     const outer = Math.max(20, height * 0.045);
     context.fillStyle = "#fde047";
@@ -583,16 +586,16 @@ function drawStickers(context, width, height, stickers) {
 
   if (stickers.has("gianna")) {
     const text = "Gianna's 11th!";
-    const fontSize = Math.max(34, Math.round(height * 0.075));
-    context.font = `900 ${fontSize}px system-ui, sans-serif`;
+    const fontSize = Math.max(24, Math.round(height * 0.045));
+    context.font = `850 ${fontSize}px system-ui, sans-serif`;
 
     const metrics = context.measureText(text);
-    const paddingX = fontSize * 0.5;
-    const paddingY = fontSize * 0.24;
-    const bannerWidth = Math.min(width * 0.74, metrics.width + paddingX * 2);
+    const paddingX = fontSize * 0.42;
+    const paddingY = fontSize * 0.18;
+    const bannerWidth = Math.min(width * 0.58, metrics.width + paddingX * 2);
     const bannerHeight = fontSize + paddingY * 2;
-    const x = width * 0.035;
-    const y = height - bannerHeight - height * 0.045;
+    const x = (width - bannerWidth) / 2;
+    const y = height - bannerHeight - height * 0.025;
 
     context.fillStyle = "rgba(124, 58, 237, 0.90)";
     drawRoundedRect(context, x, y, bannerWidth, bannerHeight, bannerHeight / 2);
@@ -603,13 +606,12 @@ function drawStickers(context, width, height, stickers) {
     context.stroke();
 
     context.fillStyle = "#ffffff";
-    context.textAlign = "left";
+    context.textAlign = "center";
     context.fillText(
       text,
-      x + paddingX,
+      width / 2,
       y + bannerHeight / 2 + fontSize * 0.02
     );
-    context.textAlign = "center";
   }
 
   drawEdgeDecorations(context, width, height, stickers);
