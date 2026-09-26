@@ -85,7 +85,6 @@ function hidePreviewMessage() {
 
 function setCaptureControlsEnabled(enabled) {
   takePhotosButton.disabled = !enabled;
-  openGalleryButton.disabled = !enabled;
   filterChips.forEach((chip) => {
     chip.disabled = !enabled;
   });
@@ -835,6 +834,7 @@ async function capturePhotoSession() {
 
   isCapturing = true;
   setCaptureControlsEnabled(false);
+  openGalleryButton.disabled = true;
   useCameraButton.disabled = true;
   refreshButton.disabled = true;
   cameraSelect.disabled = true;
@@ -887,6 +887,7 @@ async function capturePhotoSession() {
     isCapturing = false;
     cameraSelect.disabled = false;
     refreshButton.disabled = false;
+    openGalleryButton.disabled = false;
     useCameraButton.disabled = !cameraSelect.value;
 
     if (activeStream) {
